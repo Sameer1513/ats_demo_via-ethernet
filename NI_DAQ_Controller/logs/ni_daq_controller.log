@@ -1,0 +1,58 @@
+2026-06-26 17:37:32 | INFO     | logger | Logging initialized - Level: DEBUG, Directory: c:\Users\Lenovo\Documents\GitHub\ats_demo_via-ethernet\NI_DAQ_Controller\logs
+2026-06-26 17:37:32 | INFO     | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.116:5000
+2026-06-26 17:37:32 | INFO     | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-26 17:41:51 | INFO     | logger | Logging initialized - Level: DEBUG, Directory: C:\Users\Lenovo\Documents\GitHub\ats_demo_via-ethernet\NI_DAQ_Controller\logs
+2026-06-26 17:44:04 | INFO     | logger | Logging initialized - Level: DEBUG, Directory: C:\Users\Lenovo\Documents\GitHub\ats_demo_via-ethernet\NI_DAQ_Controller\logs
+2026-06-26 17:45:54 | INFO     | logger | Logging initialized - Level: DEBUG, Directory: C:\Users\Lenovo\Documents\GitHub\ats_demo_via-ethernet\NI_DAQ_Controller\logs
+2026-06-26 17:45:54 | INFO     | task_manager | TaskManager initialized
+2026-06-26 17:45:54 | INFO     | device_manager | DeviceManager initialized
+2026-06-26 17:45:54 | INFO     | __main__ | Starting NI DAQ Controller web server...
+2026-06-26 17:45:54 | DEBUG    | device_manager | NI-DAQmx library loaded successfully
+2026-06-26 17:45:54 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:45:54 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:45:54 | INFO     | __main__ | Detected 0 device(s)
+2026-06-26 17:45:54 | INFO     | werkzeug | [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.116:5000
+2026-06-26 17:45:54 | INFO     | werkzeug | [33mPress CTRL+C to quit[0m
+2026-06-26 17:46:06 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:06] "GET / HTTP/1.1" 200 -
+2026-06-26 17:46:06 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:06 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:06 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:06 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:06] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:11 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:11 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:11 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:11 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:11] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:12 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:12 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:12 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:12 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:12] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:13 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:13 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:13 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:13 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:13] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:13 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:13 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:13 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:13 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:13] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:13 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:13 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:13 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:13 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:13] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:13 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:13 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:13 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:13 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:13] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:16 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:16 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:16 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:16 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:16] "GET /api/devices HTTP/1.1" 200 -
+2026-06-26 17:46:21 | INFO     | device_manager | Discovering NI DAQ devices... (0 found)
+2026-06-26 17:46:21 | INFO     | device_manager | Device discovery complete. 0 device(s) found.
+2026-06-26 17:46:21 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-06-26 17:46:21 | INFO     | werkzeug | 127.0.0.1 - - [26/Jun/2026 17:46:21] "GET /api/devices HTTP/1.1" 200 -

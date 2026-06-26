@@ -1,0 +1,22 @@
+# NI DAQ Controller - Dependencies
+# Python 3.11+ required (built-in modules: threading, csv, asyncio, time, datetime)
+
+# NI DAQmx Python API (required for hardware communication)
+nidaqmx>=0.9.0
+
+# GUI Framework
+customtkinter>=5.2.2
+
+# Data handling (required)
+numpy>=1.24.0
+
+# CSV export (optional, for data logging)
+pandas>=2.0.0
+
+# Plotting (optional, for live graphs)
+matplotlib>=3.7.0
+
+# Configuration management (required)
+pyyaml>=6.0
+
+# Web server (for browser
