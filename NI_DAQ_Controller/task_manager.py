@@ -23,12 +23,23 @@ Typical usage:
 import time
 import threading
 import numpy as np
-from typing import List, Optional, Tuple, Dict, Any, Callable
+from typing import List, Optional, Tuple, Dict, Any, Callable, Union
 from enum import Enum
 from dataclasses import dataclass, field
 from logger import get_logger
 
 log = get_logger(__name__)
+
+
+def _physical_channel_string(device_name: str, channels: List[str]) -> str:
+    """Build NI-DAQmx channel list; accept full paths or short names."""
+    parts: List[str] = []
+    for ch in channels:
+        if '/' in ch:
+            parts.append(ch)
+        else:
+            parts.append(f"{device_name}/{ch}")
+    return ",".join(parts)
 
 
 class TaskType(Enum):
@@ -176,9 +187,7 @@ class TaskManager:
             task = self._nidaqmx.Task(task_name)
 
             # Add analog input channels
-            channel_string = ",".join(
-                [f"{device_name}/{ch}" for ch in channels]
-            )
+            channel_string = _physical_channel_string(device_name, channels)
 
             task.ai_channels.add_ai_voltage_chan(
                 channel_string,
@@ -231,7 +240,11 @@ class TaskManager:
                        device_name: str,
                        channels: List[str],
                        sample_rate: float = 1000.0,
-                       voltage_range: Tuple[float, float] = (-10.0, 10.0)) -> Optional[str]:
+                       voltage_range: Tuple[float, float] = (-10.0, 10.0),
+                       output_mode: str = 'voltage',
+                       current_range: Tuple[float, float] = (0.0, 0.02),
+                       num_samples: int = 1,
+                       continuous: bool = False) -> Optional[str]:
         """
         Create an analog output task.
 
@@ -240,6 +253,10 @@ class TaskManager:
             channels: List of analog output channels
             sample_rate: Update rate in Hz
             voltage_range: Min/max voltage range tuple
+            output_mode: 'voltage' or 'current'
+            current_range: Min/max current range in amperes
+            num_samples: Samples per channel (1 = on-demand DC)
+            continuous: Loop buffer for waveform output
 
         Returns:
             Task name string if successful, None otherwise
@@ -252,16 +269,36 @@ class TaskManager:
         try:
             task = self._nidaqmx.Task(task_name)
 
-            # Add analog output channels
-            channel_string = ",".join(
-                [f"{device_name}/{ch}" for ch in channels]
-            )
+            channel_string = _physical_channel_string(device_name, channels)
 
-            task.ao_channels.add_ao_voltage_chan(
-                channel_string,
-                min_val=voltage_range[0],
-                max_val=voltage_range[1]
-            )
+            if output_mode == 'current':
+                task.ao_channels.add_ao_current_chan(
+                    channel_string,
+                    min_val=current_range[0],
+                    max_val=current_range[1]
+                )
+            else:
+                task.ao_channels.add_ao_voltage_chan(
+                    channel_string,
+                    min_val=voltage_range[0],
+                    max_val=voltage_range[1]
+                )
+
+            if num_samples > 1:
+                sample_mode = (
+                    self._nidaqmx.constants.AcquisitionType.CONTINUOUS
+                    if continuous
+                    else self._nidaqmx.constants.AcquisitionType.FINITE
+                )
+                task.timing.cfg_samp_clk_timing(
+                    rate=sample_rate,
+                    sample_mode=sample_mode,
+                    samps_per_chan=num_samples,
+                )
+                if continuous:
+                    task.out_stream.regen_mode = (
+                        self._nidaqmx.constants.RegenerationMode.ALLOW_REGENERATION
+                    )
 
             # Store task info
             task_info = TaskInfo(
@@ -269,7 +306,8 @@ class TaskManager:
                 device_name=device_name,
                 channels=channels,
                 task_type=TaskType.ANALOG_OUTPUT,
-                sample_rate=sample_rate
+                sample_rate=sample_rate,
+                num_samples=num_samples
             )
 
             with self._lock:
@@ -277,8 +315,8 @@ class TaskManager:
                 self._nidaqmx_tasks[task_name] = task
 
             log.info(
-                "Created AO task '%s' on %s, channels=%s",
-                task_name, device_name, channels
+                "Created AO task '%s' on %s, channels=%s, rate=%.1f Hz, samples=%d",
+                task_name, device_name, channels, sample_rate, num_samples
             )
 
             return task_name
@@ -310,9 +348,7 @@ class TaskManager:
             task = self._nidaqmx.Task(task_name)
 
             # Add digital input channels
-            channel_string = ",".join(
-                [f"{device_name}/{ch}" for ch in channels]
-            )
+            channel_string = _physical_channel_string(device_name, channels)
 
             task.di_channels.add_di_chan(channel_string)
 
@@ -360,9 +396,7 @@ class TaskManager:
         try:
             task = self._nidaqmx.Task(task_name)
 
-            channel_string = ",".join(
-                [f"{device_name}/{ch}" for ch in channels]
-            )
+            channel_string = _physical_channel_string(device_name, channels)
 
             task.do_channels.add_do_chan(channel_string)
 
@@ -429,7 +463,7 @@ class TaskManager:
             return None
 
     def write_analog(self, task_name: str,
-                     data: np.ndarray,
+                     data: Union[float, int, np.ndarray],
                      timeout: float = 10.0,
                      auto_start: bool = True) -> bool:
         """
@@ -437,7 +471,8 @@ class TaskManager:
 
         Args:
             task_name: Name of the task to write to
-            data: Data array to write
+            data: Scalar for DC, 1D array for single-channel waveforms,
+                  or 2D array for multi-channel writes
             timeout: Timeout in seconds
             auto_start: Whether to auto-start the task
 
@@ -449,18 +484,33 @@ class TaskManager:
 
         with self._lock:
             task = self._nidaqmx_tasks.get(task_name)
+            task_info = self._tasks.get(task_name)
 
             if task is None:
                 log.error("Task '%s' not found", task_name)
                 return False
 
+        num_channels = len(task_info.channels) if task_info else 1
+
         try:
-            # Ensure data is 2D for multi-channel writes
-            if data.ndim == 1:
-                data = data.reshape(1, -1)
+            if isinstance(data, (int, float)):
+                write_data = float(data)
+            elif isinstance(data, np.ndarray):
+                if data.ndim == 0:
+                    write_data = float(data)
+                elif data.ndim == 1:
+                    if num_channels == 1:
+                        write_data = data
+                    else:
+                        write_data = data.reshape(num_channels, -1)
+                else:
+                    write_data = data
+            else:
+                arr = np.asarray(data)
+                write_data = arr if arr.ndim != 1 or num_channels != 1 else arr
 
             samples_written = task.write(
-                data,
+                write_data,
                 timeout=timeout,
                 auto_start=auto_start
             )

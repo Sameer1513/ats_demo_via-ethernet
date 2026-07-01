@@ -35,6 +35,9 @@ from utils import validate_numeric_input
 
 log = get_logger(__name__)
 
+AC_WAVEFORM_SAMPLES = 5000
+AC_SAMPLE_RATE = 10000.0
+
 
 class SignalType(Enum):
     """Type of output signal."""
@@ -63,6 +66,33 @@ class WaveformType(Enum):
     SQUARE = "Square"
     TRIANGLE = "Triangle"
     SAWTOOTH = "Sawtooth"
+
+
+def convert_to_output_level(
+    value: float,
+    signal_type: SignalType,
+    value_mode: str,
+    waveform: WaveformType = WaveformType.SINE,
+) -> float:
+    """
+    Convert a UI value to the level DAQmx expects (DC direct, AC peak).
+
+    value_mode:
+        direct — DC level or AC peak amplitude
+        vrms   — AC RMS; converted to peak per waveform shape
+    """
+    mode = (value_mode or 'direct').strip().lower()
+    if signal_type == SignalType.DC or mode in ('direct', 'dc', 'peak'):
+        return float(value)
+
+    v = float(value)
+    if waveform == WaveformType.SINE:
+        return v * math.sqrt(2.0)
+    if waveform == WaveformType.SQUARE:
+        return v
+    if waveform in (WaveformType.TRIANGLE, WaveformType.SAWTOOTH):
+        return v * math.sqrt(3.0)
+    return v * math.sqrt(2.0)
 
 
 @dataclass
@@ -147,6 +177,16 @@ class AnalogOutputController:
         """
         return list(self.module_info.ao_channels)
 
+    def _resolve_channel(self, channel: str) -> Optional[str]:
+        """Match a channel by full path or short name (e.g. ao0)."""
+        if channel in self.module_info.ao_channels:
+            return channel
+        short = channel.split('/')[-1]
+        for ch in self.module_info.ao_channels:
+            if ch == short or ch.endswith(f'/{short}') or ch.split('/')[-1] == short:
+                return ch
+        return None
+
     def get_voltage_ranges(self) -> List[Tuple[float, float]]:
         """
         Get supported voltage ranges.
@@ -190,52 +230,62 @@ class AnalogOutputController:
         return False
 
     def start_dc_output(self, channel: str,
-                        voltage: float,
+                        value: float,
+                        output_mode: OutputMode = OutputMode.VOLTAGE,
                         voltage_min: float = -10.0,
-                        voltage_max: float = 10.0) -> Optional[str]:
+                        voltage_max: float = 10.0,
+                        current_min: float = 0.0,
+                        current_max: float = 0.02) -> Optional[str]:
         """
-        Start a DC voltage output on a channel.
+        Start a DC output on a channel.
 
         Args:
             channel: Output channel name
-            voltage: DC voltage value to output
+            value: DC value (volts or amperes depending on output_mode)
+            output_mode: Voltage or current output
             voltage_min: Minimum voltage range
             voltage_max: Maximum voltage range
+            current_min: Minimum current range in amperes
+            current_max: Maximum current range in amperes
 
         Returns:
             Task name if successful, None otherwise
         """
-        # Validate channel
-        if channel not in self.module_info.ao_channels:
+        resolved = self._resolve_channel(channel)
+        if resolved is None:
             log.error("Invalid AO channel: %s", channel)
             return None
+        channel = resolved
 
-        # Validate voltage
-        if voltage < voltage_min or voltage > voltage_max:
+        is_current = output_mode == OutputMode.CURRENT
+        vmin, vmax = (current_min, current_max) if is_current else (voltage_min, voltage_max)
+        unit = 'A' if is_current else 'V'
+
+        if value < vmin or value > vmax:
             log.error(
-                "Voltage %.2f out of range [%.1f, %.1f]",
-                voltage, voltage_min, voltage_max
+                "Output %.4f %s out of range [%.4f, %.4f] %s",
+                value, unit, vmin, vmax, unit
             )
             return None
 
-        # Create output task
         task_name = self.task_manager.create_ao_task(
             device_name=self.device_name,
             channels=[channel],
-            voltage_range=(voltage_min, voltage_max)
+            voltage_range=(voltage_min, voltage_max),
+            output_mode='current' if is_current else 'voltage',
+            current_range=(current_min, current_max)
         )
 
         if task_name is None:
             return None
 
-        # Store config
         config = OutputConfig(
             channel=channel,
             signal_type=SignalType.DC,
-            output_mode=OutputMode.VOLTAGE,
+            output_mode=output_mode,
             measurement_mode=MeasurementMode.DC,
             waveform=WaveformType.CONSTANT,
-            amplitude=voltage,
+            amplitude=value,
             offset=0.0,
             voltage_min=voltage_min,
             voltage_max=voltage_max
@@ -244,20 +294,18 @@ class AnalogOutputController:
         with self._lock:
             self._active_outputs[task_name] = config
 
-        # Write DC value
-        data = np.array([voltage])
-        success = self.task_manager.write_analog(task_name, data)
+        success = self.task_manager.write_analog(task_name, float(value), auto_start=True)
 
         if not success:
-            log.error("Failed to write DC voltage to %s", channel)
+            log.error("Failed to write DC output to %s", channel)
             self.task_manager.clear_task(task_name)
             with self._lock:
                 self._active_outputs.pop(task_name, None)
             return None
 
         log.info(
-            "Started DC output: task=%s, channel=%s, voltage=%.3f V",
-            task_name, channel, voltage
+            "Started DC output: task=%s, channel=%s, value=%.4f %s",
+            task_name, channel, value, unit
         )
 
         return task_name
@@ -269,37 +317,39 @@ class AnalogOutputController:
                          amplitude: float = 1.0,
                          offset: float = 0.0,
                          phase: float = 0.0,
-                         duration: float = 0.0,
-                         sample_rate: float = 10000.0,
+                         output_mode: OutputMode = OutputMode.VOLTAGE,
                          voltage_min: float = -10.0,
-                         voltage_max: float = 10.0) -> Optional[str]:
+                         voltage_max: float = 10.0,
+                         current_min: float = 0.0,
+                         current_max: float = 0.02) -> Optional[str]:
         """
-        Start an AC waveform output on a channel.
+        Start a continuous AC waveform output on a channel.
 
-        Generates waveform data and writes it to the output channel,
-        either as a finite burst or continuously.
+        Generates a fixed-size buffer (AC_WAVEFORM_SAMPLES), writes it once,
+        and runs in continuous regeneration mode (no background thread).
 
         Args:
             channel: Output channel name
             waveform: Type of waveform to generate
             frequency: Signal frequency in Hz
-            amplitude: Signal amplitude in volts (peak)
-            offset: DC offset voltage
+            amplitude: Signal amplitude in volts or amperes (peak)
+            offset: DC offset
             phase: Phase offset in degrees
-            duration: Output duration in seconds (0 = continuous)
-            sample_rate: Update rate in Hz for waveform generation
+            output_mode: Voltage or current output
             voltage_min: Minimum voltage range
             voltage_max: Maximum voltage range
+            current_min: Minimum current range in amperes
+            current_max: Maximum current range in amperes
 
         Returns:
             Task name if successful, None otherwise
         """
-        # Validate channel
-        if channel not in self.module_info.ao_channels:
+        resolved = self._resolve_channel(channel)
+        if resolved is None:
             log.error("Invalid AO channel: %s", channel)
             return None
+        channel = resolved
 
-        # Validate parameters
         if frequency <= 0:
             log.error("Frequency must be positive: %.2f", frequency)
             return None
@@ -308,28 +358,35 @@ class AnalogOutputController:
             log.error("Amplitude must be positive: %.2f", amplitude)
             return None
 
-        # Create output task
+        is_current = output_mode == OutputMode.CURRENT
+        clip_min, clip_max = (current_min, current_max) if is_current else (voltage_min, voltage_max)
+        num_samples = AC_WAVEFORM_SAMPLES
+        sample_rate = AC_SAMPLE_RATE
+
         task_name = self.task_manager.create_ao_task(
             device_name=self.device_name,
             channels=[channel],
             sample_rate=sample_rate,
-            voltage_range=(voltage_min, voltage_max)
+            voltage_range=(voltage_min, voltage_max),
+            output_mode='current' if is_current else 'voltage',
+            current_range=(current_min, current_max),
+            num_samples=num_samples,
+            continuous=True,
         )
 
         if task_name is None:
             return None
 
-        # Store config
         config = OutputConfig(
             channel=channel,
             signal_type=SignalType.AC,
-            output_mode=OutputMode.VOLTAGE,
+            output_mode=output_mode,
             waveform=waveform,
             frequency=frequency,
             amplitude=amplitude,
             offset=offset,
             phase=phase,
-            duration=duration,
+            duration=0.0,
             voltage_min=voltage_min,
             voltage_max=voltage_max
         )
@@ -337,75 +394,36 @@ class AnalogOutputController:
         with self._lock:
             self._active_outputs[task_name] = config
 
-        if duration > 0:
-            # Finite burst mode
-            num_samples = int(sample_rate * duration)
-            data = self._generate_waveform(
-                waveform, num_samples, sample_rate,
-                frequency, amplitude, offset, phase
-            )
+        phase_rad = math.radians(phase)
+        data = self._generate_waveform(
+            waveform, num_samples, sample_rate,
+            frequency, amplitude, offset, phase_rad
+        )
+        data = np.clip(data, clip_min, clip_max)
 
-            # Clip to voltage range
-            data = np.clip(data, voltage_min, voltage_max)
+        success = self.task_manager.write_analog(
+            task_name, data, auto_start=False
+        )
 
-            # Write data
-            success = self.task_manager.write_analog(
-                task_name, data, auto_start=True
-            )
+        if not success:
+            log.error("Failed to write AC waveform to %s", channel)
+            self.task_manager.clear_task(task_name)
+            with self._lock:
+                self._active_outputs.pop(task_name, None)
+            return None
 
-            if not success:
-                log.error("Failed to write AC waveform to %s", channel)
-                self.task_manager.clear_task(task_name)
-                with self._lock:
-                    self._active_outputs.pop(task_name, None)
-                return None
+        if not self.task_manager.start_task(task_name):
+            log.error("Failed to start AC waveform on %s", channel)
+            self.task_manager.clear_task(task_name)
+            with self._lock:
+                self._active_outputs.pop(task_name, None)
+            return None
 
-            log.info(
-                "Started AC burst: channel=%s, waveform=%s, "
-                "freq=%.1f Hz, amp=%.3f V, duration=%.2f s",
-                channel, waveform.value, frequency, amplitude, duration
-            )
-        else:
-            # Continuous mode - start background thread
-            stop_event = threading.Event()
-            self._stop_events[task_name] = stop_event
-
-            def _continuous_output():
-                """Background thread for continuous waveform output."""
-                samples_per_update = int(sample_rate / 10)  # 10 updates/sec
-                phase_rad = math.radians(phase)
-                t = 0.0
-
-                while not stop_event.is_set():
-                    data = self._generate_waveform(
-                        waveform, samples_per_update, sample_rate,
-                        frequency, amplitude, offset, phase_rad + t * 2 * math.pi * frequency
-                    )
-                    data = np.clip(data, voltage_min, voltage_max)
-
-                    self.task_manager.write_analog(
-                        task_name, data, auto_start=False
-                    )
-
-                    t += samples_per_update / sample_rate
-                    stop_event.wait(1.0 / 10)  # 10 Hz update rate
-
-            thread = threading.Thread(
-                target=_continuous_output,
-                name=f"ao-cont-{task_name}",
-                daemon=True
-            )
-            thread.start()
-            self._output_threads[task_name] = thread
-
-            # Start the task
-            self.task_manager.start_task(task_name)
-
-            log.info(
-                "Started continuous AC: channel=%s, waveform=%s, "
-                "freq=%.1f Hz, amp=%.3f V",
-                channel, waveform.value, frequency, amplitude
-            )
+        log.info(
+            "Started AC output: channel=%s, waveform=%s, "
+            "freq=%.1f Hz, amp=%.4f, samples=%d @ %.0f Hz",
+            channel, waveform.value, frequency, amplitude, num_samples, sample_rate
+        )
 
         return task_name
 
@@ -467,17 +485,23 @@ class AnalogOutputController:
             log.error("Unknown output task: %s", task_name)
             return False
 
-        if voltage < config.voltage_min or voltage > config.voltage_max:
+        if config.signal_type != SignalType.DC:
+            return False
+
+        vmin = config.voltage_min
+        vmax = config.voltage_max
+        if config.output_mode == OutputMode.CURRENT:
+            vmin, vmax = 0.0, 0.02
+
+        if voltage < vmin or voltage > vmax:
             log.error(
-                "Voltage %.2f out of range [%.1f, %.1f]",
-                voltage, config.voltage_min, config.voltage_max
+                "Output %.4f out of range [%.4f, %.4f]",
+                voltage, vmin, vmax
             )
             return False
 
-        # Write new value
-        data = np.array([voltage])
         success = self.task_manager.write_analog(
-            task_name, data, auto_start=False
+            task_name, float(voltage), auto_start=False
         )
 
         if success:

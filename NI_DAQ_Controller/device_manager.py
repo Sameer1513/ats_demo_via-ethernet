@@ -154,6 +154,7 @@ class DeviceManager:
         self._nidaqmx_system = None
         self._initialized = False
         self._refresh_callbacks: List[callable] = []
+        self._last_discovery_error: str = ""
 
         log.info("DeviceManager initialized")
 
@@ -183,64 +184,172 @@ class DeviceManager:
 
     def discover_devices(self) -> List[DeviceInfo]:
         """
-        Discover all connected NI DAQ devices.
+        Discover all NI DAQ devices visible to the local NI-DAQmx driver.
 
-        Scans all devices available through NI-DAQmx and collects detailed
-        information about each device, including modules for chassis devices.
+        Same model as a direct ``System.local().devices`` scan: USB, PCI, and
+        Ethernet chassis already registered in NI MAX appear automatically.
 
         Returns:
             List of DeviceInfo objects for all discovered devices
         """
         if not self._check_nidaqmx():
-            return []
+            with self._lock:
+                return list(self._devices.values())
 
         discovered: Dict[str, DeviceInfo] = {}
+        self._last_discovery_error = ""
 
         try:
-            # Get all devices from NI-DAQmx system
-            daq_devices = self._nidaqmx_system.devices
-
-            log.info("Discovering NI DAQ devices... (%d found)",
-                     len(daq_devices))
+            daq_devices = list(self._nidaqmx_system.devices)
+            log.info("Discovering NI DAQ devices... (%d found)", len(daq_devices))
 
             for device in daq_devices:
                 try:
                     device_info = self._get_device_info(device)
                     if device_info:
                         discovered[device_info.name] = device_info
-                        log.info(
+                        log.debug(
                             "Discovered device: %s (%s) - %s",
                             device_info.name,
                             device_info.product_type,
-                            device_info.connection_type.value
+                            device_info.connection_type.value,
                         )
 
                 except Exception as e:
-                    log.warning("Error discovering device '%s': %s",
-                                device.name, e)
+                    log.warning(
+                        "Error discovering device '%s': %s",
+                        getattr(device, 'name', 'unknown'),
+                        e,
+                    )
 
-            # Update stored devices
+            discovered = self._group_chassis_modules(discovered)
+
             with self._lock:
-                # Mark previously discovered devices as disconnected if not found
                 for name in list(self._devices.keys()):
                     if name not in discovered:
                         self._devices[name].status = DeviceStatus.DISCONNECTED
                         log.warning("Device '%s' is no longer connected", name)
-
-                # Add/update discovered devices
                 self._devices.update(discovered)
 
-            log.info("Device discovery complete. %d device(s) found.",
-                     len(discovered))
-
-            # Notify callbacks
+            log.info("Device discovery complete. %d device(s) found.", len(discovered))
             self._notify_refresh_callbacks()
-
             return list(discovered.values())
 
         except Exception as e:
-            log.error("Failed to discover devices: %s", e)
-            return []
+            self._last_discovery_error = str(e)
+            log.warning("NI-DAQmx device scan failed: %s", e)
+            with self._lock:
+                return list(self._devices.values())
+
+    def _group_chassis_modules(
+        self, discovered: Dict[str, DeviceInfo]
+    ) -> Dict[str, DeviceInfo]:
+        """
+        Merge Ethernet cDAQ module devices into their parent chassis.
+
+        NI-DAQmx often lists ``cDAQxxxxMod1``, ``cDAQxxxxMod3`` as separate
+        entries alongside the chassis. The UI expects one chassis with modules.
+        """
+        mod_re = re.compile(r'^(.+)(Mod\d+)$')
+        to_remove: List[str] = []
+
+        for name, mod_device in discovered.items():
+            match = mod_re.match(name)
+            if not match:
+                continue
+
+            chassis_name = match.group(1)
+            if chassis_name not in discovered:
+                continue
+
+            slot_num = int(match.group(2).replace('Mod', ''))
+            chassis = discovered[chassis_name]
+
+            if mod_device.modules:
+                module = mod_device.modules[0]
+                module.name = name
+                module.slot_number = slot_num
+                module.product_type = mod_device.product_type or module.product_type
+                if mod_device.ai_channels:
+                    module.ai_channels = list(mod_device.ai_channels)
+                if mod_device.ao_channels:
+                    module.ao_channels = list(mod_device.ao_channels)
+                if mod_device.di_channels:
+                    module.di_channels = list(mod_device.di_channels)
+                if mod_device.do_channels:
+                    module.do_channels = list(mod_device.do_channels)
+                module.supported_operations = [
+                    op for op, chs in (
+                        ('AI', module.ai_channels),
+                        ('AO', module.ao_channels),
+                        ('DI', module.di_channels),
+                        ('DO', module.do_channels),
+                        ('CI', module.ci_channels),
+                        ('CO', module.co_channels),
+                    ) if chs
+                ]
+            else:
+                module = ModuleInfo(
+                    name=name,
+                    slot_number=slot_num,
+                    product_type=mod_device.product_type,
+                    serial_number=mod_device.serial_number,
+                    supported_operations=[],
+                    ai_channels=list(mod_device.ai_channels),
+                    ao_channels=list(mod_device.ao_channels),
+                    di_channels=list(mod_device.di_channels),
+                    do_channels=list(mod_device.do_channels),
+                    ci_channels=list(mod_device.ci_channels),
+                    co_channels=list(mod_device.co_channels),
+                    max_sample_rate=mod_device.max_ai_rate,
+                    supports_continuous=len(mod_device.ai_channels) > 0,
+                    is_simulated=mod_device.is_simulated,
+                )
+                for prefix, channels in (
+                    ('AI', module.ai_channels),
+                    ('AO', module.ao_channels),
+                    ('DI', module.di_channels),
+                    ('DO', module.do_channels),
+                    ('CI', module.ci_channels),
+                    ('CO', module.co_channels),
+                ):
+                    if channels:
+                        module.supported_operations.append(prefix)
+
+            chassis.modules = [
+                m for m in chassis.modules
+                if m.supported_operations or m.name != chassis_name
+            ]
+            chassis.modules.append(module)
+            chassis.modules.sort(key=lambda m: m.slot_number)
+
+            for ch_list, mod_list in (
+                (chassis.ai_channels, module.ai_channels),
+                (chassis.ao_channels, module.ao_channels),
+                (chassis.di_channels, module.di_channels),
+                (chassis.do_channels, module.do_channels),
+                (chassis.ci_channels, module.ci_channels),
+                (chassis.co_channels, module.co_channels),
+            ):
+                for ch in mod_list:
+                    if ch not in ch_list:
+                        ch_list.append(ch)
+
+            if module.max_sample_rate > chassis.max_ai_rate:
+                chassis.max_ai_rate = module.max_sample_rate
+
+            to_remove.append(name)
+
+        for name in to_remove:
+            discovered.pop(name, None)
+
+        if to_remove:
+            log.info(
+                "Grouped %d cDAQ module device(s) under chassis entries",
+                len(to_remove),
+            )
+
+        return discovered
 
     def _get_device_info(self, device: Any) -> Optional[DeviceInfo]:
         """
@@ -254,14 +363,17 @@ class DeviceManager:
         """
         try:
             name = device.name
-            product_type = getattr(device, 'product_type', '')
-            serial_number = getattr(device, 'serial_number', '')
+            product_type = getattr(device, 'product_type', '') or ''
+            serial_raw = getattr(device, 'serial_num', None)
+            if serial_raw is None:
+                serial_raw = getattr(device, 'serial_number', '')
+            try:
+                serial_number = hex(serial_raw) if isinstance(serial_raw, int) else str(serial_raw)
+            except (TypeError, ValueError):
+                serial_number = str(serial_raw)
 
-            # Determine connection type
-            connection_type = self._detect_connection_type(name, device)
-            ip_address = ""
-            if connection_type == ConnectionType.ETHERNET:
-                ip_address = self._get_ip_address(name)
+            connection_type = self._detect_connection_type(device)
+            ip_address = self._get_ip_address(device)
 
             # Get device status
             status = DeviceStatus.CONNECTED
@@ -307,37 +419,25 @@ class DeviceManager:
                       getattr(device, 'name', 'unknown'), e)
             return None
 
-    def _detect_connection_type(self, device_name: str,
-                                 device: Any) -> ConnectionType:
-        """
-        Detect the connection type of a DAQ device.
+    def _detect_connection_type(self, device: Any) -> ConnectionType:
+        """Detect connection type from NI-DAQmx device properties."""
+        try:
+            ip = getattr(device, 'tcpip_ethernet_ip', None)
+            if ip and str(ip) not in ('0.0.0.0', ''):
+                return ConnectionType.ETHERNET
+        except Exception:
+            pass
 
-        Args:
-            device_name: Name of the device
-            device: NI-DAQmx device object
-
-        Returns:
-            ConnectionType enum value
-        """
-        name_lower = device_name.lower()
-
-        # Check by name patterns
-        if any(prefix in name_lower for prefix in
-               ['cdaq', 'eth', 'tcp', 'network']):
+        name_lower = device.name.lower()
+        if any(p in name_lower for p in ('cdaq', 'eth', 'tcp', 'network')):
             return ConnectionType.ETHERNET
-
         if 'pxi' in name_lower:
             return ConnectionType.PXI
-
-        if any(prefix in name_lower for prefix in
-               ['usb', 'usb-']):
+        if 'usb' in name_lower:
             return ConnectionType.USB
-
-        if any(prefix in name_lower for prefix in
-               ['pci', 'pcie', 'pci-', 'pcie-']):
+        if any(p in name_lower for p in ('pci', 'pcie')):
             return ConnectionType.PCI
 
-        # Try to determine from device properties
         try:
             bus_type = getattr(device, 'bus_type', None)
             if bus_type is not None:
@@ -355,32 +455,20 @@ class DeviceManager:
 
         return ConnectionType.UNKNOWN
 
-    def _get_ip_address(self, device_name: str) -> str:
-        """
-        Attempt to get the IP address of an Ethernet-connected device.
-
-        Args:
-            device_name: Name of the device
-
-        Returns:
-            IP address string, or empty string if not found
-        """
+    def _get_ip_address(self, device: Any) -> str:
+        """Read IP/hostname from NI-DAQmx device properties only."""
         try:
-            # Try to resolve device hostname
-            hostname = device_name.replace(' ', '-').lower()
-            ip = socket.gethostbyname(hostname)
-            return ip
-        except (socket.gaierror, socket.herror):
+            ip = getattr(device, 'tcpip_ethernet_ip', None)
+            if ip and str(ip) not in ('0.0.0.0', ''):
+                return str(ip)
+        except Exception:
             pass
 
-        # Try common NI device name patterns
         try:
-            # Remove 'cDAQ' or similar prefix and try as hostname
-            cleaned = re.sub(r'^[a-zA-Z]+', '', device_name)
-            if cleaned:
-                ip = socket.gethostbyname(f"ni-{cleaned}")
-                return ip
-        except (socket.gaierror, socket.herror):
+            hostname = getattr(device, 'tcpip_hostname', None)
+            if hostname:
+                return str(hostname)
+        except Exception:
             pass
 
         return ""
@@ -551,17 +639,28 @@ class DeviceManager:
             List of channel names
         """
         try:
-            # Try different attribute names for channels
             channel_names = []
+            module_channel_attrs = {
+                'ai': ['ai_physical_chans', 'ai_channels', 'ai_phys_chans',
+                       'ai_physical_channels'],
+                'ao': ['ao_physical_chans', 'ao_channels', 'ao_phys_chans',
+                       'ao_physical_channels'],
+                'di': ['di_lines', 'di_channels', 'di_phys_chans',
+                       'di_physical_channels'],
+                'do': ['do_lines', 'do_channels', 'do_phys_chans',
+                       'do_physical_channels'],
+                'ci': ['ci_physical_chans', 'ci_channels', 'ci_phys_chans',
+                       'ci_physical_channels'],
+                'co': ['co_physical_chans', 'co_channels', 'co_phys_chans',
+                       'co_physical_channels'],
+            }
 
-            # Check common attribute names
-            for attr_name in [f'{prefix}_channels', f'{prefix}_phys_chans',
-                              f'{prefix}_physical_channels']:
+            for attr_name in module_channel_attrs.get(prefix, [f'{prefix}_channels']):
                 if hasattr(module, attr_name):
                     channels = getattr(module, attr_name)
                     if channels:
                         for ch in list(channels):
-                            channel_names.append(str(ch))
+                            channel_names.append(self._channel_name(ch))
                         break
 
             return channel_names
@@ -571,36 +670,28 @@ class DeviceManager:
                       prefix, e)
             return []
 
-    def _get_device_channels(self, device: Any,
-                             prefix: str) -> List[str]:
-        """
-        Get channel names for a specific type from a device.
+    def _channel_name(self, ch: Any) -> str:
+        """Physical channel name as reported by NI-DAQmx."""
+        return str(getattr(ch, 'name', ch))
 
-        Args:
-            device: NI-DAQmx device object
-            prefix: Channel prefix
-
-        Returns:
-            List of channel names
-        """
+    def _get_device_channels(self, device: Any, prefix: str) -> List[str]:
+        """Enumerate channels on a device (same attributes as NI-DAQmx Python API)."""
+        attr_map = {
+            'ai': 'ai_physical_chans',
+            'ao': 'ao_physical_chans',
+            'di': 'di_lines',
+            'do': 'do_lines',
+            'ci': 'ci_physical_chans',
+            'co': 'co_physical_chans',
+        }
+        attr = attr_map.get(prefix)
+        if not attr or not hasattr(device, attr):
+            return []
         try:
-            # Access device-level channel lists
-            if prefix == 'ai' and hasattr(device, 'ai_physical_chans'):
-                return [str(ch) for ch in device.ai_physical_chans]
-            elif prefix == 'ao' and hasattr(device, 'ao_physical_chans'):
-                return [str(ch) for ch in device.ao_physical_chans]
-            elif prefix == 'di' and hasattr(device, 'di_lines'):
-                return [str(ch) for ch in device.di_lines]
-            elif prefix == 'do' and hasattr(device, 'do_lines'):
-                return [str(ch) for ch in device.do_lines]
-            elif prefix == 'ci' and hasattr(device, 'ci_physical_chans'):
-                return [str(ch) for ch in device.ci_physical_chans]
-            elif prefix == 'co' and hasattr(device, 'co_physical_chans'):
-                return [str(ch) for ch in device.co_physical_chans]
-        except Exception:
-            pass
-
-        return []
+            return [self._channel_name(ch) for ch in getattr(device, attr)]
+        except Exception as e:
+            log.debug("Error getting %s channels for device: %s", prefix, e)
+            return []
 
     def _get_voltage_ranges(self, module: Any) -> List[Tuple[float, float]]:
         """
@@ -703,6 +794,48 @@ class DeviceManager:
         """
         log.info("Manual device refresh initiated")
         return self.discover_devices()
+
+    def add_network_device(self,
+                           ip_or_hostname: str,
+                           device_name: str = '',
+                           attempt_reservation: bool = True,
+                           timeout: float = 10.0) -> str:
+        """
+        Register an Ethernet cDAQ chassis with NI-DAQmx (user-initiated).
+
+        After a successful add, the device appears in ``System.local().devices``
+        and is picked up by :meth:`discover_devices`. If ``device_name`` is
+        omitted, NI-DAQmx assigns the name.
+
+        Args:
+            ip_or_hostname: IP address or hostname entered by the user
+            device_name: Optional DAQmx name (leave empty for auto-assignment)
+            attempt_reservation: Whether to reserve the device for this PC
+            timeout: Timeout in seconds for the add operation
+
+        Returns:
+            DAQmx device name assigned by the driver
+        """
+        if not self._check_nidaqmx():
+            raise RuntimeError("NI-DAQmx is not available")
+
+        kwargs: Dict[str, Any] = {
+            'attempt_reservation': attempt_reservation,
+            'timeout': timeout,
+        }
+        if device_name and device_name.strip():
+            kwargs['device_name'] = device_name.strip()
+
+        added = self._nidaqmx.system.Device.add_network_device(
+            ip_or_hostname.strip(),
+            **kwargs,
+        )
+        log.info("Added network device '%s' at %s", added.name, ip_or_hostname)
+        return added.name
+
+    def get_last_discovery_error(self) -> str:
+        """Return the last NI-DAQmx scan error message, if any."""
+        return self._last_discovery_error
 
     def get_device_summary(self) -> List[Dict[str, Any]]:
         """

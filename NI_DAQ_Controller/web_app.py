@@ -32,14 +32,17 @@ PACKAGE_DIR = Path(__file__).parent.absolute()
 if str(PACKAGE_DIR) not in sys.path:
     sys.path.insert(0, str(PACKAGE_DIR))
 
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request, render_template, send_from_directory, make_response
 
 from logger import initialize_logging, get_logger
 from config import global_config
 from task_manager import TaskManager
 from device_manager import DeviceManager, ModuleInfo
 from analog_input import AnalogInputController
-from analog_output import AnalogOutputController, SignalType, WaveformType
+from analog_output import (
+    AnalogOutputController, SignalType, WaveformType, OutputMode,
+    convert_to_output_level,
+)
 from digital_io import DigitalIOController
 
 # Initialize
@@ -54,6 +57,11 @@ device_manager = DeviceManager()
 # Active task tracking
 _active_ai_tasks: dict = {}
 _active_ao_tasks: dict = {}
+
+
+def _ao_task_key(device_idx: int, module_idx: int, channel: str) -> str:
+    safe = channel.replace('/', '_').replace(':', '_')
+    return f"ao_{device_idx}_{module_idx}_{safe}"
 _log_entries: list = []
 _max_log_entries = 200
 
@@ -90,73 +98,145 @@ def get_controller(device_idx: int, module_idx: int):
     return device, device.modules[module_idx], None
 
 
+def _build_device_details(devices) -> list:
+    """Serialize DeviceInfo list for the JSON API."""
+    device_details = []
+    for device in devices:
+        modules_data = []
+        for mod in device.modules:
+            modules_data.append({
+                'name': mod.name,
+                'slot_number': mod.slot_number,
+                'product_type': mod.product_type,
+                'serial_number': mod.serial_number,
+                'supported_operations': mod.supported_operations,
+                'ai_channels': mod.ai_channels,
+                'ao_channels': mod.ao_channels,
+                'di_channels': mod.di_channels,
+                'do_channels': mod.do_channels,
+                'ci_channels': mod.ci_channels,
+                'co_channels': mod.co_channels,
+                'voltage_ranges': [f"{r[0]:.1f} to {r[1]:.1f} V" for r in mod.voltage_ranges],
+                'max_sample_rate': mod.max_sample_rate,
+                'is_simulated': mod.is_simulated,
+                'ao_output_unit': (
+                    'current' if '9266' in (mod.product_type or '').upper() else 'voltage'
+                ),
+            })
+
+        device_details.append({
+            'name': device.name,
+            'product_type': device.product_type,
+            'serial_number': device.serial_number,
+            'connection_type': device.connection_type.value,
+            'ip_address': device.ip_address,
+            'status': device.status.value,
+            'module_count': len(device.modules),
+            'ai_channels': len(device.ai_channels),
+            'ao_channels': len(device.ao_channels),
+            'di_channels': len(device.di_channels),
+            'do_channels': len(device.do_channels),
+            'is_simulated': device.is_simulated,
+            'modules': modules_data,
+        })
+    return device_details
+
+
+def _device_api_payload(devices, *, scanned: bool) -> dict:
+    """Build /api/devices JSON body from a device list."""
+    device_details = _build_device_details(devices)
+    connected = len(device_manager.get_connected_devices())
+    total = len(devices)
+
+    if scanned:
+        add_log(f"Device discovery: {total} device(s) found")
+
+    hints = []
+    if scanned:
+        discovery_error = device_manager.get_last_discovery_error()
+        if discovery_error:
+            hints.append(f"NI-DAQmx scan error: {discovery_error}")
+    if not device_details and scanned:
+        hints.append(
+            "NI MAX may list chassis under Network Devices before they are added to "
+            "this PC. In MAX, select the device and click Add Device, then reserve it."
+        )
+
+    status = f"{connected}/{total} devices connected"
+    if total == 0 and not scanned:
+        status = "No devices cached — click Refresh to scan"
+
+    return {
+        'devices': device_details,
+        'status': status,
+        'cached': not scanned,
+        'log': _log_entries[-30:],
+        'hints': hints,
+    }
+
+
 # ===================== API Routes =====================
 
 @app.route('/')
 def index():
     """Serve the main web interface."""
-    return render_template('index.html')
+    resp = make_response(render_template('index.html'))
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    return resp
 
 
 @app.route('/api/devices')
 def api_devices():
-    """API: Get all discovered devices with full details."""
+    """API: Return cached devices. Pass ?refresh=1 to rescan hardware."""
     try:
+        refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
+        if refresh:
+            devices = device_manager.discover_devices()
+        else:
+            devices = device_manager.get_all_devices()
+
+        return jsonify(_device_api_payload(devices, scanned=refresh))
+    except Exception as e:
+        log.error("Device API error: %s", e)
+        return jsonify({'error': str(e), 'devices': [], 'log': _log_entries[-10:]})
+
+
+@app.route('/api/devices/add-network', methods=['POST'])
+def api_add_network_device():
+    """API: Add and reserve an Ethernet cDAQ chassis by IP or hostname."""
+    try:
+        data = request.json or {}
+        ip_or_hostname = (
+            data.get('ip_or_hostname')
+            or data.get('ip')
+            or data.get('hostname')
+        )
+        if not ip_or_hostname:
+            return jsonify({'error': 'ip_or_hostname is required'}), 400
+
+        device_name = (data.get('device_name') or '').strip()
+        attempt_reservation = data.get('attempt_reservation', True)
+        timeout = float(data.get('timeout', 10.0))
+
+        added_name = device_manager.add_network_device(
+            ip_or_hostname.strip(),
+            device_name=device_name,
+            attempt_reservation=attempt_reservation,
+            timeout=timeout,
+        )
         devices = device_manager.discover_devices()
-        summary = device_manager.get_device_summary()
-        
-        # Add module details to each device
-        device_details = []
-        for device in devices:
-            modules_data = []
-            for mod in device.modules:
-                modules_data.append({
-                    'name': mod.name,
-                    'slot_number': mod.slot_number,
-                    'product_type': mod.product_type,
-                    'serial_number': mod.serial_number,
-                    'supported_operations': mod.supported_operations,
-                    'ai_channels': mod.ai_channels,
-                    'ao_channels': mod.ao_channels,
-                    'di_channels': mod.di_channels,
-                    'do_channels': mod.do_channels,
-                    'ci_channels': mod.ci_channels,
-                    'co_channels': mod.co_channels,
-                    'voltage_ranges': [f"{r[0]:.1f} to {r[1]:.1f} V" for r in mod.voltage_ranges],
-                    'max_sample_rate': mod.max_sample_rate,
-                    'is_simulated': mod.is_simulated
-                })
-            
-            device_details.append({
-                'name': device.name,
-                'product_type': device.product_type,
-                'serial_number': device.serial_number,
-                'connection_type': device.connection_type.value,
-                'ip_address': device.ip_address,
-                'status': device.status.value,
-                'module_count': len(device.modules),
-                'ai_channels': len(device.ai_channels),
-                'ao_channels': len(device.ao_channels),
-                'di_channels': len(device.di_channels),
-                'do_channels': len(device.do_channels),
-                'is_simulated': device.is_simulated,
-                'modules': modules_data
-            })
-        
-        # Get connected status
-        connected = len(device_manager.get_connected_devices())
-        total = len(devices)
-        
-        add_log(f"Device discovery: {total} device(s) found")
-        
+        add_log(f"Added network device: {added_name} ({ip_or_hostname})")
+
         return jsonify({
-            'devices': device_details,
-            'status': f"{connected}/{total} devices connected",
-            'log': _log_entries[-30:]
+            'success': True,
+            'device_name': added_name,
+            'device_count': len(devices),
+            **_device_api_payload(devices, scanned=True),
         })
     except Exception as e:
-        log.error("Device discovery error: %s", e)
-        return jsonify({'error': str(e), 'devices': [], 'log': _log_entries[-10:]})
+        log.error("Add network device error: %s", e)
+        add_log(f"Failed to add network device: {e}", 'ERROR')
+        return jsonify({'error': str(e)}), 400
 
 
 @app.route('/api/ai/read', methods=['POST'])
@@ -275,37 +355,83 @@ def api_ao_start():
         di, mi = data['device_idx'], data['module_idx']
         channel = data['channel']
         signal = data.get('signal', 'DC')
+        value_mode = data.get('value_mode', 'direct')
         value = data.get('value', 1.0)
         frequency = data.get('frequency', 60.0)
         waveform = data.get('waveform', 'Sine')
         amplitude = data.get('amplitude', 1.0)
-        
+
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
-        
+
         controller = AnalogOutputController(task_manager, module)
-        
-        # Stop any existing output
-        task_key = f"ao_{di}_{mi}"
+        is_current = '9266' in (module.product_type or '').upper()
+        output_mode = OutputMode.CURRENT if is_current else OutputMode.VOLTAGE
+        wf_type = WaveformType(waveform)
+
+        if signal == 'DC':
+            value = convert_to_output_level(
+                float(value), SignalType.DC, value_mode, wf_type
+            )
+            applied_display = float(value)
+        else:
+            amplitude = convert_to_output_level(
+                float(amplitude), SignalType.AC, value_mode, wf_type
+            )
+            applied_display = float(amplitude)
+
+        if is_current:
+            value = value / 1000.0
+            amplitude = amplitude / 1000.0
+            applied_display *= 1000.0
+
+        display_unit = 'mA' if is_current else 'V'
+        applied_out = round(applied_display, 4)
+
+        task_key = _ao_task_key(di, mi, channel)
+        if signal == 'DC' and task_key in _active_ao_tasks:
+            task_name = _active_ao_tasks[task_key]
+            if controller.update_dc_value(task_name, value):
+                add_log(
+                    f"AO updated: {device.name}/{module.name} DC channel={channel} "
+                    f"value={applied_out} {display_unit}"
+                )
+                return jsonify({
+                    'task_name': task_name,
+                    'success': True,
+                    'updated': True,
+                    'applied_value': applied_out,
+                    'unit': display_unit,
+                    'value_mode': value_mode,
+                })
+
         if task_key in _active_ao_tasks:
             controller.stop_output(_active_ao_tasks[task_key])
-        
+
         if signal == 'DC':
-            task_name = controller.start_dc_output(channel, value)
-        else:
-            wf_type = WaveformType(waveform)
-            task_name = controller.start_ac_output(
-                channel, wf_type, frequency, amplitude
+            task_name = controller.start_dc_output(
+                channel, value, output_mode=output_mode
             )
-        
+        else:
+            task_name = controller.start_ac_output(
+                channel, wf_type, frequency, amplitude, output_mode=output_mode
+            )
+
         if task_name:
             _active_ao_tasks[task_key] = task_name
             add_log(f"AO started: {device.name}/{module.name} {signal} channel={channel}")
-            return jsonify({'task_name': task_name, 'success': True})
-        
+            return jsonify({
+                'task_name': task_name,
+                'success': True,
+                'value_mode': value_mode,
+                'applied_value': applied_out,
+                'unit': display_unit,
+            })
+
         return jsonify({'error': 'Failed to start output'}), 500
     except Exception as e:
+        log.error("AO start error: %s", e)
         return jsonify({'error': str(e)}), 500
 
 
@@ -315,18 +441,27 @@ def api_ao_stop():
     try:
         data = request.json
         di, mi = data['device_idx'], data['module_idx']
-        task_key = f"ao_{di}_{mi}"
-        
+        channel = data.get('channel')
+
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
-        
-        if task_key in _active_ao_tasks:
-            controller = AnalogOutputController(task_manager, module)
-            controller.stop_output(_active_ao_tasks[task_key])
-            del _active_ao_tasks[task_key]
-            add_log(f"AO stopped")
-        
+
+        controller = AnalogOutputController(task_manager, module)
+        if channel:
+            task_key = _ao_task_key(di, mi, channel)
+            if task_key in _active_ao_tasks:
+                controller.stop_output(_active_ao_tasks[task_key])
+                del _active_ao_tasks[task_key]
+                add_log(f"AO stopped: {channel}")
+        else:
+            prefix = f"ao_{di}_{mi}_"
+            for task_key in list(_active_ao_tasks.keys()):
+                if task_key.startswith(prefix):
+                    controller.stop_output(_active_ao_tasks[task_key])
+                    del _active_ao_tasks[task_key]
+            add_log("AO stopped (all channels on module)")
+
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -338,15 +473,28 @@ def api_di_read():
     try:
         data = request.json
         di, mi = data['device_idx'], data['module_idx']
-        
+        channel = data.get('channel')
+
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
-        
+
         controller = DigitalIOController(task_manager, module)
-        values = controller.read_digital_input()
-        
+        channels = [channel] if channel else None
+        values = controller.read_digital_input(channels)
+
         if values:
+            if channel:
+                v = values.get(channel)
+                if v is None:
+                    for ch_name, ch_val in values.items():
+                        if ch_name.endswith('/' + channel) or ch_name.split('/')[-1] == channel:
+                            v = ch_val
+                            break
+                if v is None:
+                    return jsonify({'error': 'Channel not found'}), 404
+                formatted = [f"{'HIGH' if v else 'LOW'}"]
+                return jsonify({'values': formatted, 'value': v, 'success': True})
             formatted = [
                 f"{ch.split('/')[-1]}: {'HIGH' if v else 'LOW'}"
                 for ch, v in values.items()
@@ -421,22 +569,7 @@ if __name__ == '__main__':
     
     # Perform initial device discovery with timeout
     add_log("Starting NI DAQ Controller web server...")
-    
-    # Run discovery in a thread with timeout
-    discovery_result = []
-    def _safe_discovery():
-        try:
-            d = device_manager.discover_devices()
-            discovery_result.append(d)
-        except Exception as e:
-            log.warning("Discovery error (non-fatal): %s", e)
-            discovery_result.append([])
-    
-    discovery_thread = threading.Thread(target=_safe_discovery, daemon=True)
-    discovery_thread.start()
-    discovery_thread.join(timeout=5.0)
-    
-    devices = discovery_result[0] if discovery_result else []
+    devices = device_manager.discover_devices()
     add_log(f"Detected {len(devices)} device(s)")
     
     print(f"  ✓ Device discovery: {len(devices)} device(s)")

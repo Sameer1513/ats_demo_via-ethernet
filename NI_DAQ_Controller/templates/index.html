@@ -27,6 +27,7 @@
         .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
         
         .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tabs-chassis { margin-bottom: 0; }
         .tab-btn {
             padding: 10px 20px; background: #16213e; border: none;
             color: #888; cursor: pointer; border-radius: 6px 6px 0 0;
@@ -36,64 +37,70 @@
         .tab-btn.active { background: #0f3460; color: #00d4ff; font-weight: bold; }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
+        .tab-panel-chassis { display: none; }
+        .tab-panel-chassis.active { display: block; }
 
-        .device-card {
-            background: #16213e; border-radius: 8px; padding: 16px;
-            margin-bottom: 12px; border-left: 4px solid #0f3460;
+        .tabs-module {
+            display: flex; gap: 4px; margin: 12px 0 16px; flex-wrap: wrap;
+            padding: 8px 0; border-bottom: 1px solid #0f3460;
         }
-        .device-card.connected { border-left-color: #4caf50; }
-        .device-card.disconnected { border-left-color: #f44336; }
-        .device-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .tab-btn-module {
+            padding: 8px 14px; background: #1a2747; border: 1px solid #0f3460;
+            color: #aaa; cursor: pointer; border-radius: 4px; font-size: 13px;
+        }
+        .tab-btn-module:hover { background: #243352; color: #ddd; }
+        .tab-btn-module.active { background: #0f3460; color: #00d4ff; border-color: #00d4ff; font-weight: bold; }
+        .tab-panel-module { display: none; }
+        .tab-panel-module.active { display: block; }
+
+        .chassis-header {
+            background: #16213e; border-radius: 8px; padding: 14px 18px;
+            margin-bottom: 8px; border-left: 4px solid #4caf50;
+        }
+        .device-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
         .device-name { font-size: 16px; font-weight: bold; color: #fff; }
         .device-type { color: #888; font-size: 13px; }
         .device-details { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #aaa; }
+        .module-meta { color: #888; font-size: 12px; margin-bottom: 12px; }
 
-        .module-section {
-            background: #1a2747; border-radius: 6px; margin: 8px 0;
+        .channel-list { display: flex; flex-direction: column; gap: 8px; max-height: 65vh; overflow-y: auto; }
+        .channel-row {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+            background: #16213e; padding: 10px 14px; border-radius: 6px;
             border: 1px solid #0f3460;
         }
-        .module-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 16px; cursor: pointer; user-select: none;
+        .channel-name { font-family: 'Courier New', monospace; font-weight: bold; color: #00d4ff; min-width: 72px; }
+        .channel-type { font-size: 11px; padding: 3px 8px; border-radius: 3px; background: #0d1b2a; color: #aaa; }
+        .channel-type.read { color: #69f0ae; }
+        .channel-type.write { color: #ffa726; }
+        .channel-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; }
+        .channel-value {
+            min-width: 120px; font-family: 'Courier New', monospace; font-size: 13px;
+            color: #69f0ae; padding: 4px 8px; background: #0d1b2a; border-radius: 4px;
         }
-        .module-header:hover { background: rgba(255,255,255,0.03); }
-        .module-title { font-weight: bold; color: #00d4ff; font-size: 14px; }
-        .module-info { color: #888; font-size: 12px; }
-        .module-body { padding: 12px 16px; border-top: 1px solid #0f3460; display: none; }
-        .module-body.expanded { display: block; }
-
-        .control-group {
-            background: #16213e; border-radius: 6px; padding: 12px; margin-bottom: 8px;
-        }
-        .control-group h4 { color: #00d4ff; font-size: 13px; margin-bottom: 8px; }
-        .control-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-        .control-row label { font-size: 12px; color: #aaa; min-width: 80px; }
+        .ao-ac-fields { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
         input, select {
             background: #0d1b2a; border: 1px solid #0f3460; color: #fff;
             padding: 6px 10px; border-radius: 4px; font-size: 13px;
         }
         input:focus, select:focus { outline: none; border-color: #00d4ff; }
-        input[type="text"], input[type="number"] { width: 120px; }
+        input.ao-input[type="number"] { -moz-appearance: textfield; width: 80px; }
+        input.ao-input[type="number"]::-webkit-outer-spin-button,
+        input.ao-input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; margin: 0;
+        }
 
         button {
             padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
             font-size: 13px; font-weight: bold; transition: all 0.2s;
         }
         button:hover { opacity: 0.85; }
-        button:active { transform: scale(0.97); }
         .btn-primary { background: #1565c0; color: white; }
         .btn-success { background: #2e7d32; color: white; }
         .btn-danger { background: #c62828; color: white; }
         .btn-warning { background: #ef6c00; color: white; }
         .btn-secondary { background: #37474f; color: white; }
-
-        .value-display {
-            background: #0d1b2a; border-radius: 4px; padding: 12px;
-            font-family: 'Courier New', monospace; font-size: 18px;
-            color: #69f0ae; text-align: center; margin: 8px 0;
-            min-height: 48px; display: flex; align-items: center; justify-content: center;
-        }
 
         .log-container {
             background: #0d1b2a; border-radius: 6px; padding: 12px;
@@ -112,7 +119,6 @@
         }
         .toast.success { background: #2e7d32; }
         .toast.error { background: #c62828; }
-
         .spinner {
             display: inline-block; width: 16px; height: 16px;
             border: 2px solid #0f3460; border-top-color: #00d4ff;
@@ -120,22 +126,9 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); z-index: 999;
-        }
-        .modal-overlay.active { display: flex; align-items: center; justify-content: center; }
-        .modal {
-            background: #16213e; border-radius: 8px; padding: 24px;
-            max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
-        }
-        .modal h3 { color: #00d4ff; margin-bottom: 16px; }
-        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-        
         @media (max-width: 768px) {
             .container { padding: 8px; }
-            .control-row { flex-direction: column; align-items: stretch; }
-            input[type="text"], input[type="number"] { width: 100%; }
+            .channel-controls { flex-direction: column; align-items: stretch; }
         }
     </style>
 </head>
@@ -147,13 +140,13 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
             <span id="deviceCount" style="font-size:13px;color:#888;">Devices: 0</span>
-            <button class="btn-primary" onclick="refreshDevices()">🔄 Refresh</button>
+            <button class="btn-primary" onclick="refreshDevices(true)">🔄 Refresh</button>
         </div>
     </nav>
 
     <div class="container">
-        <div class="tabs" id="tabContainer">
-            <button class="tab-btn active" onclick="switchTab('dashboard', this)">📊 Dashboard</button>
+        <div class="tabs tabs-chassis" id="tabContainer">
+            <button class="tab-btn active" onclick="switchChassisTab('dashboard', this)">📊 Dashboard</button>
         </div>
         
         <div id="dashboard" class="tab-panel active">
@@ -168,24 +161,13 @@
     </div>
 
     <div class="toast" id="toast"></div>
-    <div class="modal-overlay" id="modal">
-        <div class="modal">
-            <h3 id="modalTitle"></h3>
-            <div id="modalBody"></div>
-            <div class="modal-actions">
-                <button class="btn-secondary" onclick="closeModal()">Close</button>
-            </div>
-        </div>
-    </div>
 
     <script>
         let currentTab = 'dashboard';
-        let autoRefresh = true;
+        let devicesLoaded = false;
+        window._deviceStore = [];
 
-        document.addEventListener('DOMContentLoaded', () => {
-            refreshDevices();
-            setInterval(() => { if(autoRefresh) refreshDevices(); }, 5000);
-        });
+        document.addEventListener('DOMContentLoaded', () => loadDevices());
 
         function showToast(msg, type='success') {
             const t = document.getElementById('toast');
@@ -193,217 +175,283 @@
             setTimeout(() => t.style.display = 'none', 3000);
         }
 
-        function switchTab(tabId, btn) {
+        function switchChassisTab(tabId, btn) {
             currentTab = tabId;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-        }
-
-        function openModal(title, content) {
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalBody').innerHTML = content;
-            document.getElementById('modal').classList.add('active');
-        }
-        function closeModal() { document.getElementById('modal').classList.remove('active'); }
-
-        async function apiCall(endpoint, method='GET', body=null) {
-            try {
-                const opts = { method, headers: {'Content-Type': 'application/json'} };
-                if(body) opts.body = JSON.stringify(body);
-                const resp = await fetch(endpoint, opts);
-                const data = await resp.json();
-                if(!resp.ok) throw new Error(data.error || 'API error');
-                return data;
-            } catch(e) {
-                showToast(e.message, 'error');
-                return null;
+            document.querySelectorAll('#tabContainer .tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel, .tab-panel-chassis').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const panel = document.getElementById(tabId);
+            if (panel) panel.classList.add('active');
+            if (tabId !== 'dashboard') {
+                const firstMod = panel?.querySelector('.tab-btn-module');
+                if (firstMod) firstMod.click();
             }
         }
 
-        async function refreshDevices() {
-            document.getElementById('deviceCount').innerHTML = 'Devices: <span class="spinner"></span>';
+        function switchModuleTab(chassisIdx, moduleIdx, btn) {
+            const chassisPanel = document.getElementById(`chassis-${chassisIdx}`);
+            if (!chassisPanel) return;
+            chassisPanel.querySelectorAll('.tab-btn-module').forEach(b => b.classList.remove('active'));
+            chassisPanel.querySelectorAll('.tab-panel-module').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const modPanel = document.getElementById(`chassis-${chassisIdx}-mod-${moduleIdx}`);
+            if (modPanel) modPanel.classList.add('active');
+        }
+
+        async function apiCall(endpoint, method='GET', body=null, timeoutMs=8000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const opts = { method, headers: {'Content-Type': 'application/json'}, signal: controller.signal };
+                if (body) opts.body = JSON.stringify(body);
+                const resp = await fetch(endpoint, opts);
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'API error');
+                return data;
+            } catch (e) {
+                const msg = e.name === 'AbortError' ? 'Request timed out' : e.message;
+                showToast(msg, 'error');
+                return null;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        async function loadDevices() {
             const data = await apiCall('/api/devices');
-            if(!data) return;
-            
+            if (data) applyDeviceData(data);
+        }
+
+        async function refreshDevices(rescan = false) {
+            if (rescan) {
+                document.getElementById('deviceCount').innerHTML = 'Devices: <span class="spinner"></span>';
+                document.getElementById('statusBar').textContent = 'Scanning hardware…';
+            }
+            const url = rescan ? '/api/devices?refresh=1' : '/api/devices';
+            const data = await apiCall(url, 'GET', null, rescan ? 15000 : 8000);
+            if (!data) {
+                if (rescan) {
+                    document.getElementById('deviceCount').textContent = 'Devices: 0';
+                    document.getElementById('statusBar').textContent = 'Scan failed';
+                }
+                return;
+            }
+            applyDeviceData(data);
+            if (rescan) showToast(`Scan complete: ${data.devices.length} device(s)`);
+        }
+
+        function applyDeviceData(data) {
             document.getElementById('deviceCount').textContent = `Devices: ${data.devices.length}`;
             document.getElementById('statusBar').textContent = data.status;
-            
+            window._lastDiscoveryHints = data.hints || [];
+            window._deviceStore = data.devices || [];
             renderDashboard(data.devices);
-            renderDeviceTabs(data.devices);
+            if (!devicesLoaded || data.devices.length > 0) {
+                renderChassisTabs(data.devices);
+                devicesLoaded = true;
+            }
             updateLog(data.log);
         }
 
         function renderDashboard(devices) {
             const container = document.getElementById('deviceCards');
-            if(devices.length === 0) {
+            if (devices.length === 0) {
+                const hints = (window._lastDiscoveryHints || []).map(h => `<p style="margin-top:8px;font-size:13px;color:#aaa;">${h}</p>`).join('');
                 container.innerHTML = `
-                    <div style="text-align:center;padding:60px;color:#666;">
+                    <div style="text-align:center;padding:40px;color:#666;">
                         <div style="font-size:48px;margin-bottom:16px;">🔌</div>
                         <h3>No NI DAQ Devices Detected</h3>
-                        <p style="margin-top:8px;">Ensure devices are connected and NI-DAQmx driver is installed.</p>
-                        <p style="margin-top:4px;font-size:12px;">Press Refresh (F5) to rescan.</p>
+                        <p style="margin-top:8px;font-size:13px;color:#aaa;">
+                            Add and reserve the cDAQ in NI MAX, then click <strong>Refresh</strong>.
+                        </p>
+                        ${hints}
+                        <div style="margin-top:20px;padding:16px;background:#16213e;border-radius:8px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto;">
+                            <h4 style="color:#00d4ff;margin-bottom:8px;">Add Ethernet cDAQ (optional)</h4>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0;">
+                                <label>IP:</label>
+                                <input type="text" id="netDeviceIp" placeholder="169.254.x.x" style="width:200px;">
+                                <button class="btn-primary" onclick="addNetworkDevice()">➕ Add</button>
+                            </div>
+                        </div>
                     </div>`;
                 return;
             }
-            
-            container.innerHTML = devices.map(d => `
-                <div class="device-card ${d.status.toLowerCase()}">
-                    <div class="device-header">
-                        <span class="badge ${d.connection_type.toLowerCase()}">${d.connection_type}</span>
-                        <span class="device-name">${d.name}</span>
-                        <span class="device-type">${d.product_type}</span>
-                        <span class="badge ${d.status === 'Connected' ? 'connected' : 'disconnected'}">${d.status}</span>
-                    </div>
-                    <div class="device-details">
-                        ${d.serial_number ? `<span>S/N: ${d.serial_number}</span>` : ''}
-                        ${d.ip_address ? `<span>IP: ${d.ip_address}</span>` : ''}
-                        <span>Modules: ${d.module_count}</span>
-                        <span>AI: ${d.ai_channels} | AO: ${d.ao_channels} | DI: ${d.di_channels} | DO: ${d.do_channels}</span>
-                        ${d.is_simulated ? '<span style="color:#ff9800;">SIMULATED</span>' : ''}
-                    </div>
-                </div>
-            `).join('');
+            container.innerHTML = `
+                <div style="padding:16px 20px;background:#16213e;border-radius:8px;border-left:4px solid #4caf50;">
+                    <p style="font-size:14px;color:#ccc;">
+                        <strong style="color:#69f0ae;">${devices.length}</strong> chassis detected.
+                        Use <strong>Chassis</strong> tabs → <strong>NI Device</strong> → per-channel Read/Write.
+                    </p>
+                </div>`;
         }
 
-        function renderDeviceTabs(devices) {
+        function shortChannelName(ch) {
+            return (ch.split('/').pop() || ch).replace(/^line/, 'P');
+        }
+
+        function moduleHasChannels(mod) {
+            return mod.ai_channels?.length || mod.ao_channels?.length ||
+                mod.di_channels?.length || mod.do_channels?.length;
+        }
+
+        function renderAoChannelRow(di, mi, ci, channel, mod) {
+            const aoUnit = mod.ao_output_unit === 'current' ? 'mA' : 'V';
+            const rmsLabel = aoUnit === 'mA' ? 'Irms' : 'Vrms';
+            const aoDefault = mod.ao_output_unit === 'current' ? '4.0' : '1.0';
+            const id = `${di}_${mi}_ao_${ci}`;
+            return `
+            <div class="channel-row" data-channel="${channel}" data-ao-unit="${aoUnit}">
+                <span class="channel-name">${shortChannelName(channel)}</span>
+                <span class="channel-type write">WRITE</span>
+                <div class="channel-controls">
+                    <select id="ao_sig_${id}" onchange="updateAoChannelControls('${id}')">
+                        <option>DC</option><option>AC</option>
+                    </select>
+                    <span id="ao_dc_${id}">
+                        <label style="font-size:12px;color:#aaa;">Value (${aoUnit}):</label>
+                        <input type="number" class="ao-input" id="ao_set_${id}" value="${aoDefault}" step="any" min="0">
+                    </span>
+                    <span id="ao_ac_${id}" class="ao-ac-fields" style="display:none;">
+                        <label style="font-size:12px;color:#aaa;">Mode:</label>
+                        <select id="ao_valmode_${id}">
+                            <option value="direct">Direct</option>
+                            <option value="vrms">${rmsLabel}</option>
+                        </select>
+                        <label style="font-size:12px;color:#aaa;">Value (${aoUnit}):</label>
+                        <input type="number" class="ao-input" id="ao_amp_${id}" value="${aoDefault}" step="any" min="0">
+                        <label style="font-size:12px;color:#aaa;">Hz:</label>
+                        <input type="number" class="ao-input" id="ao_freq_${id}" value="60" min="1" style="width:70px;">
+                        <label style="font-size:12px;color:#aaa;">Wave:</label>
+                        <select id="ao_wf_${id}">
+                            <option>Sine</option><option>Square</option><option>Triangle</option><option>Sawtooth</option>
+                        </select>
+                    </span>
+                    <button class="btn-warning" onclick="writeAO(${di},${mi},'${id}')">Write</button>
+                </div>
+                <span class="channel-value" id="ao_status_${id}">--</span>
+            </div>`;
+        }
+
+        function renderModuleChannels(di, mi, mod) {
+            let html = '';
+            (mod.ai_channels || []).forEach((ch, ci) => {
+                const id = `${di}_${mi}_ai_${ci}`;
+                html += `
+                <div class="channel-row" data-channel="${ch}">
+                    <span class="channel-name">${shortChannelName(ch)}</span>
+                    <span class="channel-type read">READ</span>
+                    <div class="channel-controls">
+                        <button class="btn-success" onclick="readAIChannel(${di},${mi},'${id}')">Read</button>
+                    </div>
+                    <span class="channel-value" id="val_${id}">-- V</span>
+                </div>`;
+            });
+            (mod.ao_channels || []).forEach((ch, ci) => {
+                html += renderAoChannelRow(di, mi, ci, ch, mod);
+            });
+            (mod.di_channels || []).forEach((ch, ci) => {
+                const id = `${di}_${mi}_di_${ci}`;
+                html += `
+                <div class="channel-row" data-channel="${ch}">
+                    <span class="channel-name">${shortChannelName(ch)}</span>
+                    <span class="channel-type read">READ</span>
+                    <div class="channel-controls">
+                        <button class="btn-success" onclick="readDIChannel(${di},${mi},'${id}')">Read</button>
+                    </div>
+                    <span class="channel-value" id="val_${id}">--</span>
+                </div>`;
+            });
+            (mod.do_channels || []).forEach((ch, ci) => {
+                const id = `${di}_${mi}_do_${ci}`;
+                html += `
+                <div class="channel-row" data-channel="${ch}">
+                    <span class="channel-name">${shortChannelName(ch)}</span>
+                    <span class="channel-type write">WRITE</span>
+                    <div class="channel-controls">
+                        <button class="btn-secondary" onclick="toggleDOChannel(${di},${mi},'${id}')">Toggle</button>
+                    </div>
+                    <span class="channel-value" id="val_${id}">--</span>
+                </div>`;
+            });
+            return html || '<p style="color:#888;padding:12px;">No channels on this module.</p>';
+        }
+
+        function renderChassisTabs(devices) {
             const tabContainer = document.getElementById('tabContainer');
             const panelsContainer = document.getElementById('devicePanels');
-            
-            // Remove old device tabs (keep dashboard)
             tabContainer.querySelectorAll('.tab-btn:not(:first-child)').forEach(e => e.remove());
             panelsContainer.innerHTML = '';
-            
-            devices.forEach((device, idx) => {
-                const tabId = `device-${idx}`;
-                
-                // Add tab button
+
+            devices.forEach((device, di) => {
+                const chassisId = `chassis-${di}`;
+                const modules = (device.modules || [])
+                    .map((mod, origIdx) => ({ mod, origIdx }))
+                    .filter(({ mod }) => moduleHasChannels(mod));
+
                 const btn = document.createElement('button');
                 btn.className = 'tab-btn';
-                btn.textContent = `🔌 ${device.name.split('/')[0]}`;
-                btn.onclick = () => switchTab(tabId, btn);
+                btn.textContent = `🔌 Chassis ${di + 1}`;
+                btn.title = device.name;
+                btn.onclick = () => switchChassisTab(chassisId, btn);
                 tabContainer.appendChild(btn);
-                
-                // Build panel
-                let modulesHtml = '';
-                (device.modules || []).forEach((mod, mi) => {
-                    let opsHtml = '';
-                    
-                    // AI section
-                    if(mod.supported_operations.includes('AI')) {
-                        opsHtml += `
-                        <div class="control-group">
-                            <h4>📈 Analog Input</h4>
-                            <div class="control-row">
-                                <label>Channels:</label>
-                                <input type="text" id="ai_ch_${idx}_${mi}" value="${mod.ai_channels.slice(0,4).join(',')}" style="width:200px;">
-                            </div>
-                            <div class="control-row">
-                                <label>Sample Rate:</label>
-                                <input type="number" id="ai_rate_${idx}_${mi}" value="1000" min="1">
-                                <label>Samples:</label>
-                                <input type="number" id="ai_ns_${idx}_${mi}" value="100" min="1">
-                            </div>
-                            <div class="value-display" id="ai_val_${idx}_${mi}">-- V</div>
-                            <div class="control-row">
-                                <button class="btn-success" onclick="readAI(${idx},${mi})">📖 Read</button>
-                                <button class="btn-primary" onclick="startAI(${idx},${mi})">▶ Continuous</button>
-                                <button class="btn-danger" onclick="stopAI(${idx},${mi})">■ Stop</button>
-                            </div>
+
+                let moduleTabsHtml = '';
+                let modulePanelsHtml = '';
+                modules.forEach(({ mod, origIdx: mi }, displayIdx) => {
+                    const modId = `chassis-${di}-mod-${mi}`;
+                    const active = displayIdx === 0 ? 'active' : '';
+                    moduleTabsHtml += `
+                        <button class="tab-btn-module ${active}" onclick="switchModuleTab(${di},${mi}, this)">
+                            NI Device ${displayIdx + 1}
+                            <span style="color:#666;font-weight:normal;">(${mod.product_type || mod.name})</span>
+                        </button>`;
+                    modulePanelsHtml += `
+                        <div id="${modId}" class="tab-panel-module ${active}">
+                            <div class="module-meta">${mod.name} · Slot ${mod.slot_number} · ${mod.product_type}</div>
+                            <div class="channel-list">${renderModuleChannels(di, mi, mod)}</div>
                         </div>`;
-                    }
-                    
-                    // AO section
-                    if(mod.supported_operations.includes('AO')) {
-                        opsHtml += `
-                        <div class="control-group">
-                            <h4>📤 Analog Output</h4>
-                            <div class="control-row">
-                                <label>Channel:</label>
-                                <select id="ao_ch_${idx}_${mi}">
-                                    ${mod.ao_channels.map(c => `<option value="${c}">${c.split('/').pop()}</option>`).join('')}
-                                </select>
-                                <label>Signal:</label>
-                                <select id="ao_sig_${idx}_${mi}"><option>DC</option><option>AC</option></select>
-                            </div>
-                            <div class="control-row">
-                                <label>Value (V):</label>
-                                <input type="number" id="ao_val_${idx}_${mi}" value="1.0" step="0.1">
-                                <label>Freq:</label>
-                                <input type="number" id="ao_freq_${idx}_${mi}" value="60" min="1">
-                            </div>
-                            <div class="control-row">
-                                <label>Waveform:</label>
-                                <select id="ao_wf_${idx}_${mi}">
-                                    <option>Sine</option><option>Square</option><option>Triangle</option><option>Sawtooth</option>
-                                </select>
-                                <label>Amp:</label>
-                                <input type="number" id="ao_amp_${idx}_${mi}" value="1.0" step="0.1">
-                            </div>
-                            <div class="value-display" id="ao_val_${idx}_${mi}" style="color:#ffa726;">Output: Stopped</div>
-                            <div class="control-row">
-                                <button class="btn-warning" onclick="startAO(${idx},${mi})">▶ Start</button>
-                                <button class="btn-danger" onclick="stopAO(${idx},${mi})">■ Stop</button>
-                            </div>
-                        </div>`;
-                    }
-                    
-                    // DI/DO section
-                    if(mod.supported_operations.includes('DI') || mod.supported_operations.includes('DO')) {
-                        opsHtml += `
-                        <div class="control-group">
-                            <h4>🔲 Digital I/O</h4>
-                            <div class="control-row">
-                                ${mod.supported_operations.includes('DI') ? `<button class="btn-success" onclick="readDI(${idx},${mi})">📖 Read DI</button>` : ''}
-                            </div>
-                            <div class="value-display" id="di_val_${idx}_${mi}" style="font-size:14px;">--</div>
-                            ${mod.supported_operations.includes('DO') ? `
-                            <div class="control-row" id="do_btns_${idx}_${mi}">
-                                ${mod.do_channels.slice(0,8).map((ch,ci) => 
-                                    `<button class="btn-secondary" style="width:60px;font-size:11px;" onclick="toggleDO(${idx},${mi},${ci},'${ch}')">${ch.split('line').pop()||ch.split('/').pop()}</button>`
-                                ).join('')}
-                            </div>` : ''}
-                        </div>`;
-                    }
-                    
-                    modulesHtml += `
-                    <div class="module-section">
-                        <div class="module-header" onclick="this.nextElementSibling.classList.toggle('expanded')">
-                            <span class="module-title">${mod.name}</span>
-                            <span class="module-info">${mod.product_type} | Slot ${mod.slot_number} | [${mod.supported_operations.join(', ')}]</span>
-                        </div>
-                        <div class="module-body expanded">${opsHtml}</div>
-                    </div>`;
                 });
-                
+
                 const panel = document.createElement('div');
-                panel.id = tabId;
-                panel.className = 'tab-panel';
+                panel.id = chassisId;
+                panel.className = 'tab-panel-chassis';
                 panel.innerHTML = `
-                    <div class="device-card ${device.status.toLowerCase()}">
+                    <div class="chassis-header">
                         <div class="device-header">
                             <span class="badge ${device.connection_type.toLowerCase()}">${device.connection_type}</span>
                             <span class="device-name">${device.name}</span>
                             <span class="device-type">${device.product_type}</span>
                             <span class="badge ${device.status === 'Connected' ? 'connected' : 'disconnected'}">${device.status}</span>
                         </div>
-                        <div class="device-details">
+                        <div class="device-details" style="margin-top:8px;">
                             ${device.serial_number ? `<span>S/N: ${device.serial_number}</span>` : ''}
                             ${device.ip_address ? `<span>IP: ${device.ip_address}</span>` : ''}
-                            <span>Modules: ${device.modules.length}</span>
+                            <span>Modules: ${modules.length}</span>
                         </div>
                     </div>
-                    ${modulesHtml}
+                    ${modules.length ? `
+                        <div class="tabs-module">${moduleTabsHtml}</div>
+                        ${modulePanelsHtml}
+                    ` : '<p style="color:#888;padding:16px;">No I/O modules on this chassis.</p>'}
                 `;
                 panelsContainer.appendChild(panel);
             });
+
+            if (devices.length > 0 && currentTab === 'dashboard') {
+                const first = tabContainer.querySelector('.tab-btn:not(:first-child)');
+                if (first) first.click();
+            }
+        }
+
+        function updateAoChannelControls(id) {
+            const signal = document.getElementById(`ao_sig_${id}`).value;
+            document.getElementById(`ao_dc_${id}`).style.display = signal === 'DC' ? 'inline-flex' : 'none';
+            document.getElementById(`ao_ac_${id}`).style.display = signal === 'AC' ? 'inline-flex' : 'none';
         }
 
         function updateLog(entries) {
             const container = document.getElementById('logContainer');
-            if(!entries || !entries.length) return;
-            
+            if (!entries?.length) return;
             entries.slice(-50).forEach(e => {
                 const div = document.createElement('div');
                 div.className = `log-entry log-${(e.level||'info').toLowerCase()}`;
@@ -413,54 +461,84 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // === Analog Input Functions ===
-        async function readAI(di, mi) {
-            const channels = document.getElementById(`ai_ch_${di}_${mi}`).value.split(',').map(s=>s.trim());
-            const rate = document.getElementById(`ai_rate_${di}_${mi}`).value;
-            const samples = document.getElementById(`ai_ns_${di}_${mi}`).value;
-            const result = await apiCall('/api/ai/read', 'POST', { device_idx: di, module_idx: mi, channels, rate: parseFloat(rate), samples: parseInt(samples) });
-            if(result) document.getElementById(`ai_val_${di}_${mi}`).textContent = result.values.join(' | ');
+        function channelFromId(id) {
+            const el = document.getElementById(`ao_sig_${id}`) || document.getElementById(`val_${id}`);
+            return el?.closest('.channel-row')?.dataset?.channel;
         }
 
-        async function startAI(di, mi) {
-            const channels = document.getElementById(`ai_ch_${di}_${mi}`).value.split(',').map(s=>s.trim());
-            const rate = document.getElementById(`ai_rate_${di}_${mi}`).value;
-            const samples = document.getElementById(`ai_ns_${di}_${mi}`).value;
-            const result = await apiCall('/api/ai/start', 'POST', { device_idx: di, module_idx: mi, channels, rate: parseFloat(rate), samples: parseInt(samples) });
-            if(result) showToast(`Continuous AI started: ${result.task_name}`);
+        function formatAppliedOutput(result, signal, id) {
+            const unit = result.unit || 'V';
+            const val = result.applied_value;
+            if (val === null || val === undefined) return '--';
+            let text = `${val} ${unit}`;
+            if (signal === 'AC') {
+                const freq = document.getElementById(`ao_freq_${id}`).value;
+                const wf = document.getElementById(`ao_wf_${id}`).value;
+                text += ` @ ${freq} Hz ${wf}`;
+            }
+            return text;
         }
 
-        async function stopAI(di, mi) {
-            const result = await apiCall('/api/ai/stop', 'POST', { device_idx: di, module_idx: mi });
-            if(result) { showToast('AI stopped'); document.getElementById(`ai_val_${di}_${mi}`).textContent = '-- V'; }
+        async function readAIChannel(di, mi, id) {
+            const channel = channelFromId(id);
+            const result = await apiCall('/api/ai/read', 'POST', {
+                device_idx: di, module_idx: mi, channels: [channel], rate: 1000, samples: 1
+            });
+            if (result) document.getElementById(`val_${id}`).textContent = result.values?.[0] || '--';
         }
 
-        // === Analog Output Functions ===
-        async function startAO(di, mi) {
-            const channel = document.getElementById(`ao_ch_${di}_${mi}`).value;
-            const signal = document.getElementById(`ao_sig_${di}_${mi}`).value;
-            const val = parseFloat(document.getElementById(`ao_val_${di}_${mi}`).value);
-            const freq = parseFloat(document.getElementById(`ao_freq_${di}_${mi}`).value);
-            const wf = document.getElementById(`ao_wf_${di}_${mi}`).value;
-            const amp = parseFloat(document.getElementById(`ao_amp_${di}_${mi}`).value);
-            const result = await apiCall('/api/ao/start', 'POST', { device_idx: di, module_idx: mi, channel, signal, value: val, frequency: freq, waveform: wf, amplitude: amp });
-            if(result) { showToast(`Output started: ${result.task_name}`); document.getElementById(`ao_val_${di}_${mi}`).textContent = `Output: Active (${signal})`; }
+        async function writeAO(di, mi, id) {
+            const channel = channelFromId(id);
+            const signal = document.getElementById(`ao_sig_${id}`).value;
+            const value_mode = signal === 'DC' ? 'direct' : (document.getElementById(`ao_valmode_${id}`)?.value || 'direct');
+            let value, freq, wf, amp;
+            if (signal === 'DC') {
+                value = parseFloat(document.getElementById(`ao_set_${id}`).value);
+                freq = 0; wf = 'Sine'; amp = value;
+            } else {
+                value = 0;
+                freq = parseFloat(document.getElementById(`ao_freq_${id}`).value);
+                wf = document.getElementById(`ao_wf_${id}`).value;
+                amp = parseFloat(document.getElementById(`ao_amp_${id}`).value);
+            }
+            const result = await apiCall('/api/ao/start', 'POST', {
+                device_idx: di, module_idx: mi, channel, signal, value_mode,
+                value, frequency: freq, waveform: wf, amplitude: amp
+            });
+            if (result) {
+                const text = formatAppliedOutput(result, signal, id);
+                showToast(`Written: ${shortChannelName(channel)} = ${text}`);
+                document.getElementById(`ao_status_${id}`).textContent = text;
+            }
         }
 
-        async function stopAO(di, mi) {
-            const result = await apiCall('/api/ao/stop', 'POST', { device_idx: di, module_idx: mi });
-            if(result) { showToast('Output stopped'); document.getElementById(`ao_val_${di}_${mi}`).textContent = 'Output: Stopped'; }
+        async function readDIChannel(di, mi, id) {
+            const channel = channelFromId(id);
+            const result = await apiCall('/api/di/read', 'POST', { device_idx: di, module_idx: mi, channel });
+            if (result) document.getElementById(`val_${id}`).textContent = result.values?.[0] || '--';
         }
 
-        // === Digital I/O Functions ===
-        async function readDI(di, mi) {
-            const result = await apiCall('/api/di/read', 'POST', { device_idx: di, module_idx: mi });
-            if(result) document.getElementById(`di_val_${di}_${mi}`).textContent = result.values.join(' | ');
-        }
-
-        async function toggleDO(di, mi, ci, channel) {
+        async function toggleDOChannel(di, mi, id) {
+            const channel = channelFromId(id);
             const result = await apiCall('/api/do/toggle', 'POST', { device_idx: di, module_idx: mi, channel });
-            if(result) showToast(`${channel}: ${result.state ? 'HIGH' : 'LOW'}`);
+            if (result) {
+                const text = result.state ? 'HIGH' : 'LOW';
+                document.getElementById(`val_${id}`).textContent = text;
+                showToast(`${shortChannelName(channel)}: ${text}`);
+            }
+        }
+
+        async function addNetworkDevice() {
+            const ip = document.getElementById('netDeviceIp')?.value?.trim();
+            if (!ip) { showToast('Enter IP address', 'error'); return; }
+            const result = await apiCall('/api/devices/add-network', 'POST', {
+                ip_or_hostname: ip, attempt_reservation: true
+            }, 15000);
+            if (result) {
+                showToast(`Added ${result.device_name || ip}`);
+                applyDeviceData(result);
+                devicesLoaded = true;
+            }
         }
     </script>
 </body>
