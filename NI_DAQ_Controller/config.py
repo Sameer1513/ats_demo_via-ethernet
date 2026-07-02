@@ -63,7 +63,7 @@ class AppConfig:
         'output': {
             'default_voltage_range': [-10, 10],
             'max_voltage_range': [-10, 10],
-            'default_frequency': 60.0,
+            'default_frequency': 50.0,
             'max_frequency': 10000.0,
         },
         'csv_export': {

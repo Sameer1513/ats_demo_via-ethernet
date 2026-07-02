@@ -119,7 +119,7 @@ class OutputConfig:
     output_mode: OutputMode = OutputMode.VOLTAGE
     measurement_mode: MeasurementMode = MeasurementMode.DC
     waveform: WaveformType = WaveformType.CONSTANT
-    frequency: float = 60.0
+    frequency: float = 50.0
     amplitude: float = 1.0
     offset: float = 0.0
     phase: float = 0.0
@@ -313,7 +313,7 @@ class AnalogOutputController:
     def start_ac_output(self,
                          channel: str,
                          waveform: WaveformType = WaveformType.SINE,
-                         frequency: float = 60.0,
+                         frequency: float = 50.0,
                          amplitude: float = 1.0,
                          offset: float = 0.0,
                          phase: float = 0.0,
@@ -354,8 +354,8 @@ class AnalogOutputController:
             log.error("Frequency must be positive: %.2f", frequency)
             return None
 
-        if amplitude <= 0:
-            log.error("Amplitude must be positive: %.2f", amplitude)
+        if amplitude < 0:
+            log.error("Amplitude must not be negative: %.2f", amplitude)
             return None
 
         is_current = output_mode == OutputMode.CURRENT
@@ -607,7 +607,7 @@ class AnalogOutputController:
                               waveform: WaveformType,
                               num_samples: int = 1000,
                               sample_rate: float = 10000.0,
-                              frequency: float = 60.0,
+                              frequency: float = 50.0,
                               amplitude: float = 1.0,
                               offset: float = 0.0,
                               phase: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:

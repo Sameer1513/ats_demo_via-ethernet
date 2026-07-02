@@ -85,10 +85,10 @@
             padding: 6px 10px; border-radius: 4px; font-size: 13px;
         }
         input:focus, select:focus { outline: none; border-color: #00d4ff; }
-        input.ao-input[type="number"] { -moz-appearance: textfield; width: 80px; }
+        input.ao-input[type="number"] { appearance: textfield; -moz-appearance: textfield; width: 80px; }
         input.ao-input[type="number"]::-webkit-outer-spin-button,
         input.ao-input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none; margin: 0;
+            appearance: none; -webkit-appearance: none; margin: 0;
         }
 
         button {
@@ -320,7 +320,7 @@
                         <label style="font-size:12px;color:#aaa;">Value (${aoUnit}):</label>
                         <input type="number" class="ao-input" id="ao_amp_${id}" value="${aoDefault}" step="any" min="0">
                         <label style="font-size:12px;color:#aaa;">Hz:</label>
-                        <input type="number" class="ao-input" id="ao_freq_${id}" value="60" min="1" style="width:70px;">
+                        <input type="number" class="ao-input" id="ao_freq_${id}" value="50" min="1" style="width:70px;">
                         <label style="font-size:12px;color:#aaa;">Wave:</label>
                         <select id="ao_wf_${id}">
                             <option>Sine</option><option>Square</option><option>Triangle</option><option>Sawtooth</option>

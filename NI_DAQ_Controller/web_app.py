@@ -357,7 +357,7 @@ def api_ao_start():
         signal = data.get('signal', 'DC')
         value_mode = data.get('value_mode', 'direct')
         value = data.get('value', 1.0)
-        frequency = data.get('frequency', 60.0)
+        frequency = data.get('frequency', 50.0)
         waveform = data.get('waveform', 'Sine')
         amplitude = data.get('amplitude', 1.0)
 
