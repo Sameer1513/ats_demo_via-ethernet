@@ -225,21 +225,158 @@ class DeviceManager:
             discovered = self._group_chassis_modules(discovered)
 
             with self._lock:
-                for name in list(self._devices.keys()):
-                    if name not in discovered:
-                        self._devices[name].status = DeviceStatus.DISCONNECTED
-                        log.warning("Device '%s' is no longer connected", name)
+                self._devices.clear()
                 self._devices.update(discovered)
 
             log.info("Device discovery complete. %d device(s) found.", len(discovered))
+            self._log_discovery_summary(discovered)
             self._notify_refresh_callbacks()
-            return list(discovered.values())
+            result = list(discovered.values())
+            result.sort(key=lambda d: (d.connection_type.value, d.name.lower()))
+            return result
 
         except Exception as e:
             self._last_discovery_error = str(e)
             log.warning("NI-DAQmx device scan failed: %s", e)
             with self._lock:
                 return list(self._devices.values())
+
+    def _log_discovery_summary(self, discovered: Dict[str, DeviceInfo]) -> None:
+        """Log per-connection-type counts for debugging."""
+        counts: Dict[str, int] = {}
+        for device in discovered.values():
+            label = device.connection_type.value
+            counts[label] = counts.get(label, 0) + 1
+        if counts:
+            parts = ", ".join(f"{n} {t}" for t, n in sorted(counts.items()))
+            log.info("Devices by connection: %s", parts)
+
+    def _safe_device_attr(self, device: Any, attr: str, default: Any = None) -> Any:
+        """Read an NI-DAQmx device property; unsupported attrs return default."""
+        try:
+            return getattr(device, attr)
+        except Exception:
+            return default
+
+    def _device_max_sample_rate(self, device: Any) -> float:
+        """Best-effort max sample rate without failing on DI/DO-only hardware."""
+        for attr in ('ai_max_rate', 'ao_max_rate'):
+            val = self._safe_device_attr(device, attr, 0)
+            try:
+                rate = float(val or 0)
+                if rate > 0:
+                    return rate
+            except (TypeError, ValueError):
+                continue
+        return 0.0
+
+    def _total_channel_count(self, device_info: DeviceInfo) -> int:
+        return (
+            len(device_info.ai_channels)
+            + len(device_info.ao_channels)
+            + len(device_info.di_channels)
+            + len(device_info.do_channels)
+            + len(device_info.ci_channels)
+            + len(device_info.co_channels)
+        )
+
+    def _probe_ethernet_task(self, device: Any) -> bool:
+        """Run a minimal NI-DAQmx task to verify the device responds."""
+        task = self._nidaqmx.Task()
+        try:
+            if hasattr(device, 'ai_physical_chans'):
+                ai = list(device.ai_physical_chans)
+                if ai:
+                    task.ai_channels.add_ai_voltage_chan(ai[0].name)
+                    task.start()
+                    task.read(number_of_samples_per_channel=1, timeout=2.0)
+                    task.stop()
+                    return True
+
+            if hasattr(device, 'di_lines'):
+                di = list(device.di_lines)
+                if di:
+                    task.di_channels.add_di_chan(di[0].name)
+                    task.start()
+                    task.read()
+                    task.stop()
+                    return True
+
+            if hasattr(device, 'ao_physical_chans'):
+                ao = list(device.ao_physical_chans)
+                if ao:
+                    ch_name = ao[0].name
+                    for add_chan in (
+                        lambda t: t.ao_channels.add_ao_voltage_chan(ch_name),
+                        lambda t: t.ao_channels.add_ao_current_chan(ch_name),
+                    ):
+                        probe_task = self._nidaqmx.Task()
+                        try:
+                            add_chan(probe_task)
+                            probe_task.start()
+                            probe_task.stop()
+                            return True
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                probe_task.close()
+                            except Exception:
+                                pass
+
+            if hasattr(device, 'do_lines'):
+                do = list(device.do_lines)
+                if do:
+                    task.do_channels.add_do_chan(do[0].name)
+                    task.start()
+                    task.stop()
+                    return True
+
+            return False
+        finally:
+            try:
+                task.close()
+            except Exception:
+                pass
+
+    def _probe_ethernet_via_modules(self, chassis_name: str) -> bool:
+        """Chassis entries often have no channels; modules appear as separate *ModN devices."""
+        mod_re = re.compile(rf'^{re.escape(chassis_name)}Mod\d+$', re.IGNORECASE)
+        for dev in self._nidaqmx_system.devices:
+            if mod_re.match(dev.name) and self._probe_ethernet_task(dev):
+                return True
+        return False
+
+    def _probe_ethernet_live(self, device: Any) -> bool:
+        """
+        Verify an Ethernet device responds to NI-DAQmx (not just NI MAX metadata).
+
+        Ghost cDAQ entries keep channel lists after disconnect; a minimal task
+        start/read proves the hardware is actually reachable.
+        """
+        name = getattr(device, 'name', 'unknown')
+        try:
+            if self._probe_ethernet_task(device):
+                return True
+
+            # cDAQ chassis frequently has no channels; NI-DAQmx lists modules separately.
+            if not re.search(r'Mod\d+$', name, re.IGNORECASE):
+                return self._probe_ethernet_via_modules(name)
+
+            return False
+        except Exception as e:
+            log.debug("Ethernet probe failed for '%s': %s", name, e)
+            return False
+
+    def _is_device_reachable(self, device: Any, device_info: DeviceInfo) -> bool:
+        """
+        Return False for NI MAX ghost entries (e.g. Ethernet cDAQ configured
+        but not physically connected).
+        """
+        if device_info.connection_type == ConnectionType.ETHERNET:
+            return self._probe_ethernet_live(device)
+
+        return self._total_channel_count(device_info) > 0
 
     def _group_chassis_modules(
         self, discovered: Dict[str, DeviceInfo]
@@ -250,7 +387,7 @@ class DeviceManager:
         NI-DAQmx often lists ``cDAQxxxxMod1``, ``cDAQxxxxMod3`` as separate
         entries alongside the chassis. The UI expects one chassis with modules.
         """
-        mod_re = re.compile(r'^(.+)(Mod\d+)$')
+        mod_re = re.compile(r'^(.+)(Mod\d+)$', re.IGNORECASE)
         to_remove: List[str] = []
 
         for name, mod_device in discovered.items():
@@ -262,82 +399,10 @@ class DeviceManager:
             if chassis_name not in discovered:
                 continue
 
-            slot_num = int(match.group(2).replace('Mod', ''))
-            chassis = discovered[chassis_name]
-
-            if mod_device.modules:
-                module = mod_device.modules[0]
-                module.name = name
-                module.slot_number = slot_num
-                module.product_type = mod_device.product_type or module.product_type
-                if mod_device.ai_channels:
-                    module.ai_channels = list(mod_device.ai_channels)
-                if mod_device.ao_channels:
-                    module.ao_channels = list(mod_device.ao_channels)
-                if mod_device.di_channels:
-                    module.di_channels = list(mod_device.di_channels)
-                if mod_device.do_channels:
-                    module.do_channels = list(mod_device.do_channels)
-                module.supported_operations = [
-                    op for op, chs in (
-                        ('AI', module.ai_channels),
-                        ('AO', module.ao_channels),
-                        ('DI', module.di_channels),
-                        ('DO', module.do_channels),
-                        ('CI', module.ci_channels),
-                        ('CO', module.co_channels),
-                    ) if chs
-                ]
-            else:
-                module = ModuleInfo(
-                    name=name,
-                    slot_number=slot_num,
-                    product_type=mod_device.product_type,
-                    serial_number=mod_device.serial_number,
-                    supported_operations=[],
-                    ai_channels=list(mod_device.ai_channels),
-                    ao_channels=list(mod_device.ao_channels),
-                    di_channels=list(mod_device.di_channels),
-                    do_channels=list(mod_device.do_channels),
-                    ci_channels=list(mod_device.ci_channels),
-                    co_channels=list(mod_device.co_channels),
-                    max_sample_rate=mod_device.max_ai_rate,
-                    supports_continuous=len(mod_device.ai_channels) > 0,
-                    is_simulated=mod_device.is_simulated,
-                )
-                for prefix, channels in (
-                    ('AI', module.ai_channels),
-                    ('AO', module.ao_channels),
-                    ('DI', module.di_channels),
-                    ('DO', module.do_channels),
-                    ('CI', module.ci_channels),
-                    ('CO', module.co_channels),
-                ):
-                    if channels:
-                        module.supported_operations.append(prefix)
-
-            chassis.modules = [
-                m for m in chassis.modules
-                if m.supported_operations or m.name != chassis_name
-            ]
-            chassis.modules.append(module)
-            chassis.modules.sort(key=lambda m: m.slot_number)
-
-            for ch_list, mod_list in (
-                (chassis.ai_channels, module.ai_channels),
-                (chassis.ao_channels, module.ao_channels),
-                (chassis.di_channels, module.di_channels),
-                (chassis.do_channels, module.do_channels),
-                (chassis.ci_channels, module.ci_channels),
-                (chassis.co_channels, module.co_channels),
-            ):
-                for ch in mod_list:
-                    if ch not in ch_list:
-                        ch_list.append(ch)
-
-            if module.max_sample_rate > chassis.max_ai_rate:
-                chassis.max_ai_rate = module.max_sample_rate
-
+            slot_num = int(match.group(2).replace('Mod', '').replace('mod', ''))
+            self._merge_mod_device_into_chassis(
+                discovered[chassis_name], chassis_name, name, mod_device, slot_num
+            )
             to_remove.append(name)
 
         for name in to_remove:
@@ -349,7 +414,156 @@ class DeviceManager:
                 len(to_remove),
             )
 
+        # Modules reachable while parent chassis entry is missing (ghost in NI MAX)
+        orphans: Dict[str, List[Tuple[str, DeviceInfo]]] = {}
+        for name, mod_device in discovered.items():
+            match = mod_re.match(name)
+            if not match:
+                continue
+            chassis_name = match.group(1)
+            if chassis_name in discovered:
+                continue
+            orphans.setdefault(chassis_name, []).append((name, mod_device))
+
+        for chassis_name, mod_entries in orphans.items():
+            chassis = DeviceInfo(
+                name=chassis_name,
+                product_type=self._infer_chassis_product_type(chassis_name, mod_entries),
+                connection_type=ConnectionType.ETHERNET,
+                status=DeviceStatus.CONNECTED,
+            )
+            try:
+                parent_dev = self._nidaqmx_system.devices[chassis_name]
+                chassis.product_type = (
+                    getattr(parent_dev, 'product_type', '') or chassis.product_type
+                )
+                chassis.ip_address = self._get_ip_address(parent_dev)
+                serial_raw = self._safe_device_attr(parent_dev, 'serial_num', '')
+                if serial_raw:
+                    chassis.serial_number = (
+                        hex(serial_raw) if isinstance(serial_raw, int) else str(serial_raw)
+                    )
+            except Exception:
+                pass
+
+            if not chassis.ip_address and mod_entries:
+                chassis.ip_address = mod_entries[0][1].ip_address
+
+            for name, mod_device in sorted(
+                mod_entries,
+                key=lambda e: int(mod_re.match(e[0]).group(2).replace('Mod', '').replace('mod', '')),
+            ):
+                slot_num = int(mod_re.match(name).group(2).replace('Mod', '').replace('mod', ''))
+                self._merge_mod_device_into_chassis(
+                    chassis, chassis_name, name, mod_device, slot_num
+                )
+                discovered.pop(name, None)
+
+            discovered[chassis_name] = chassis
+            log.info(
+                "Grouped %d orphan module(s) under synthetic chassis '%s'",
+                len(mod_entries),
+                chassis_name,
+            )
+
         return discovered
+
+    def _infer_chassis_product_type(
+        self,
+        chassis_name: str,
+        mod_entries: List[Tuple[str, DeviceInfo]],
+    ) -> str:
+        """Guess chassis product type from name or installed modules."""
+        name_lower = chassis_name.lower()
+        if '9189' in name_lower:
+            return 'cDAQ-9189'
+        if '9188' in name_lower:
+            return 'cDAQ-9188'
+        if mod_entries:
+            return mod_entries[0][1].product_type or 'cDAQ'
+        return 'cDAQ'
+
+    def _merge_mod_device_into_chassis(
+        self,
+        chassis: DeviceInfo,
+        chassis_name: str,
+        mod_name: str,
+        mod_device: DeviceInfo,
+        slot_num: int,
+    ) -> None:
+        """Attach a cDAQ module device entry to its parent chassis."""
+        if mod_device.modules:
+            module = mod_device.modules[0]
+            module.name = mod_name
+            module.slot_number = slot_num
+            module.product_type = mod_device.product_type or module.product_type
+            if mod_device.ai_channels:
+                module.ai_channels = list(mod_device.ai_channels)
+            if mod_device.ao_channels:
+                module.ao_channels = list(mod_device.ao_channels)
+            if mod_device.di_channels:
+                module.di_channels = list(mod_device.di_channels)
+            if mod_device.do_channels:
+                module.do_channels = list(mod_device.do_channels)
+            module.supported_operations = [
+                op for op, chs in (
+                    ('AI', module.ai_channels),
+                    ('AO', module.ao_channels),
+                    ('DI', module.di_channels),
+                    ('DO', module.do_channels),
+                    ('CI', module.ci_channels),
+                    ('CO', module.co_channels),
+                ) if chs
+            ]
+        else:
+            module = ModuleInfo(
+                name=mod_name,
+                slot_number=slot_num,
+                product_type=mod_device.product_type,
+                serial_number=mod_device.serial_number,
+                supported_operations=[],
+                ai_channels=list(mod_device.ai_channels),
+                ao_channels=list(mod_device.ao_channels),
+                di_channels=list(mod_device.di_channels),
+                do_channels=list(mod_device.do_channels),
+                ci_channels=list(mod_device.ci_channels),
+                co_channels=list(mod_device.co_channels),
+                max_sample_rate=mod_device.max_ai_rate,
+                supports_continuous=len(mod_device.ai_channels) > 0,
+                is_simulated=mod_device.is_simulated,
+            )
+            for prefix, channels in (
+                ('AI', module.ai_channels),
+                ('AO', module.ao_channels),
+                ('DI', module.di_channels),
+                ('DO', module.do_channels),
+                ('CI', module.ci_channels),
+                ('CO', module.co_channels),
+            ):
+                if channels:
+                    module.supported_operations.append(prefix)
+
+        chassis.modules = [
+            m for m in chassis.modules
+            if m.supported_operations or m.name != chassis_name
+        ]
+        chassis.modules.append(module)
+        chassis.modules.sort(key=lambda m: m.slot_number)
+
+        for ch_list, mod_list in (
+            (chassis.ai_channels, module.ai_channels),
+            (chassis.ao_channels, module.ao_channels),
+            (chassis.di_channels, module.di_channels),
+            (chassis.do_channels, module.do_channels),
+            (chassis.ci_channels, module.ci_channels),
+            (chassis.co_channels, module.co_channels),
+        ):
+            for ch in mod_list:
+                if ch not in ch_list:
+                    ch_list.append(ch)
+
+        if module.max_sample_rate > chassis.max_ai_rate:
+            chassis.max_ai_rate = module.max_sample_rate
 
     def _get_device_info(self, device: Any) -> Optional[DeviceInfo]:
         """
@@ -412,6 +626,14 @@ class DeviceManager:
             # Also try to get device-level channel information
             self._add_device_level_channels(device, device_info)
 
+            if not self._is_device_reachable(device, device_info):
+                log.info(
+                    "Skipping unreachable device '%s' (%s)",
+                    name,
+                    connection_type.value,
+                )
+                return None
+
             return device_info
 
         except Exception as e:
@@ -421,6 +643,16 @@ class DeviceManager:
 
     def _detect_connection_type(self, device: Any) -> ConnectionType:
         """Detect connection type from NI-DAQmx device properties."""
+        mod_match = re.match(r'^(.+)(Mod\d+)$', device.name, re.IGNORECASE)
+        if mod_match:
+            parent_name = mod_match.group(1)
+            try:
+                parent = self._nidaqmx_system.devices[parent_name]
+                return self._detect_connection_type(parent)
+            except Exception:
+                if 'cdaq' in parent_name.lower():
+                    return ConnectionType.ETHERNET
+
         try:
             ip = getattr(device, 'tcpip_ethernet_ip', None)
             if ip and str(ip) not in ('0.0.0.0', ''):
@@ -428,30 +660,30 @@ class DeviceManager:
         except Exception:
             pass
 
-        name_lower = device.name.lower()
-        if any(p in name_lower for p in ('cdaq', 'eth', 'tcp', 'network')):
-            return ConnectionType.ETHERNET
-        if 'pxi' in name_lower:
-            return ConnectionType.PXI
-        if 'usb' in name_lower:
-            return ConnectionType.USB
-        if any(p in name_lower for p in ('pci', 'pcie')):
-            return ConnectionType.PCI
-
         try:
             bus_type = getattr(device, 'bus_type', None)
             if bus_type is not None:
-                bus_str = str(bus_type).lower()
-                if 'usb' in bus_str:
-                    return ConnectionType.USB
-                if 'pci' in bus_str:
-                    return ConnectionType.PCI
-                if 'pxi' in bus_str:
-                    return ConnectionType.PXI
-                if 'tcp' in bus_str or 'ethernet' in bus_str:
+                bus_lower = str(bus_type).lower()
+                if 'tcpip' in bus_lower or bus_lower.endswith('.tcp'):
                     return ConnectionType.ETHERNET
+                if 'usb' in bus_lower:
+                    return ConnectionType.USB
+                if 'pxi' in bus_lower:
+                    return ConnectionType.PXI
+                if 'pci' in bus_lower:
+                    return ConnectionType.PCI
         except Exception:
             pass
+
+        name_lower = device.name.lower()
+        if 'usb' in name_lower:
+            return ConnectionType.USB
+        if 'pxi' in name_lower:
+            return ConnectionType.PXI
+        if any(p in name_lower for p in ('pci', 'pcie')):
+            return ConnectionType.PCI
+        if any(p in name_lower for p in ('cdaq', 'eth', 'tcp', 'network')):
+            return ConnectionType.ETHERNET
 
         return ConnectionType.UNKNOWN
 
@@ -555,8 +787,7 @@ class DeviceManager:
         voltage_ranges = self._get_voltage_ranges(module)
 
         # Get max sample rate
-        max_sample_rate = getattr(module, 'ai_max_rate', 0.0) or \
-                          getattr(module, 'ao_max_rate', 0.0)
+        max_sample_rate = self._device_max_sample_rate(module)
 
         return ModuleInfo(
             name=module_name,
@@ -620,8 +851,7 @@ class DeviceManager:
             do_channels=do_channels,
             ci_channels=ci_channels,
             co_channels=co_channels,
-            max_sample_rate=float(getattr(device, 'ai_max_rate', 0) or
-                                  getattr(device, 'ao_max_rate', 0)),
+            max_sample_rate=self._device_max_sample_rate(device),
             supports_continuous=len(ai_channels) > 0,
             is_simulated=getattr(device, 'is_simulated', False)
         )
@@ -764,10 +994,36 @@ class DeviceManager:
         Get information about all discovered devices.
 
         Returns:
-            List of all DeviceInfo objects
+            List of all DeviceInfo objects (Ethernet and USB together)
         """
         with self._lock:
-            return list(self._devices.values())
+            devices = list(self._devices.values())
+            devices.sort(
+                key=lambda d: (
+                    d.connection_type.value,
+                    d.name.lower(),
+                )
+            )
+            return devices
+
+    def get_connection_summary(self) -> Dict[str, int]:
+        """Count discovered devices grouped by connection type (connected only)."""
+        with self._lock:
+            counts: Dict[str, int] = {}
+            for device in self._devices.values():
+                if device.status != DeviceStatus.CONNECTED:
+                    continue
+                label = device.connection_type.value
+                counts[label] = counts.get(label, 0) + 1
+            return counts
+
+    def get_offline_devices(self) -> List[DeviceInfo]:
+        """Devices visible to NI-DAQmx but not currently reachable."""
+        with self._lock:
+            return [
+                d for d in self._devices.values()
+                if d.status == DeviceStatus.DISCONNECTED
+            ]
 
     def get_connected_devices(self) -> List[DeviceInfo]:
         """

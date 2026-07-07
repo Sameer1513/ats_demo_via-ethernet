@@ -23,6 +23,8 @@
         .badge.ethernet { background: #0d47a1; }
         .badge.usb { background: #33691e; }
         .badge.pxi { background: #4a148c; }
+        .badge.pci { background: #4e342e; }
+        .badge.unknown { background: #424242; }
 
         .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
         
@@ -78,6 +80,28 @@
             min-width: 120px; font-family: 'Courier New', monospace; font-size: 13px;
             color: #69f0ae; padding: 4px 8px; background: #0d1b2a; border-radius: 4px;
         }
+        .digital-row { justify-content: space-between; }
+        .digital-io-bar {
+            display: flex; gap: 16px; align-items: center; flex-wrap: wrap; flex: 1;
+        }
+        .dio-live {
+            display: flex; gap: 8px; align-items: center; min-width: 120px;
+        }
+        .dio-section {
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+        }
+        .dio-module-toolbar {
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+            padding: 12px 16px; margin-bottom: 10px;
+            background: #16213e; border-radius: 8px; border-left: 4px solid #00d4ff;
+        }
+        .dio-value {
+            min-width: 52px; text-align: center; font-family: 'Courier New', monospace;
+            font-size: 13px; padding: 4px 8px; background: #0d1b2a; border-radius: 4px;
+        }
+        .dio-value.true-val { color: #69f0ae; }
+        .dio-value.false-val { color: #ff8a80; }
+        button.btn-sm { padding: 6px 12px; font-size: 12px; }
         .ao-ac-fields { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
         input, select {
@@ -101,6 +125,20 @@
         .btn-danger { background: #c62828; color: white; }
         .btn-warning { background: #ef6c00; color: white; }
         .btn-secondary { background: #37474f; color: white; }
+        .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+        .dio-module-toolbar {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            padding: 10px 14px; margin-bottom: 8px;
+            background: #0f3460; border-radius: 6px;
+        }
+        .digital-row .channel-controls { gap: 6px; }
+        .dio-status {
+            min-width: 56px; font-family: 'Courier New', monospace; font-size: 13px;
+            padding: 4px 8px; background: #0d1b2a; border-radius: 4px;
+        }
+        .dio-status.true-val { color: #69f0ae; }
+        .dio-status.false-val { color: #ef9a9a; }
 
         .log-container {
             background: #0d1b2a; border-radius: 6px; padding: 12px;
@@ -218,7 +256,7 @@
         }
 
         async function loadDevices() {
-            const data = await apiCall('/api/devices');
+            const data = await apiCall('/api/devices?refresh=1', 'GET', null, 15000);
             if (data) applyDeviceData(data);
         }
 
@@ -240,17 +278,34 @@
             if (rescan) showToast(`Scan complete: ${data.devices.length} device(s)`);
         }
 
+
         function applyDeviceData(data) {
-            document.getElementById('deviceCount').textContent = `Devices: ${data.devices.length}`;
+            const devices = data.devices || [];
+            document.getElementById('deviceCount').textContent = `Devices: ${devices.length}`;
             document.getElementById('statusBar').textContent = data.status;
             window._lastDiscoveryHints = data.hints || [];
-            window._deviceStore = data.devices || [];
-            renderDashboard(data.devices);
-            if (!devicesLoaded || data.devices.length > 0) {
-                renderChassisTabs(data.devices);
-                devicesLoaded = true;
-            }
+            window._deviceStore = devices;
+            renderDashboard(devices);
+            renderChassisTabs(devices);
+            devicesLoaded = true;
             updateLog(data.log);
+        }
+
+        function connectionBadgeClass(type) {
+            const t = (type || 'unknown').toLowerCase();
+            if (t.includes('pci')) return 'pci';
+            return t;
+        }
+
+        function formatConnectionSummary(devices) {
+            const counts = {};
+            devices.forEach(d => {
+                const t = d.connection_type || 'Unknown';
+                counts[t] = (counts[t] || 0) + 1;
+            });
+            return Object.entries(counts)
+                .map(([t, n]) => `${n} ${t}`)
+                .join(', ');
         }
 
         function renderDashboard(devices) {
@@ -262,7 +317,10 @@
                         <div style="font-size:48px;margin-bottom:16px;">🔌</div>
                         <h3>No NI DAQ Devices Detected</h3>
                         <p style="margin-top:8px;font-size:13px;color:#aaa;">
-                            Add and reserve the cDAQ in NI MAX, then click <strong>Refresh</strong>.
+                            <strong>USB:</strong> plug in the device — it should appear after <strong>Refresh</strong>
+                            if NI MAX sees it.<br>
+                            <strong>Ethernet:</strong> add and reserve the cDAQ in NI MAX (or use Add below), then
+                            <strong>Refresh</strong>.
                         </p>
                         ${hints}
                         <div style="margin-top:20px;padding:16px;background:#16213e;border-radius:8px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto;">
@@ -276,13 +334,52 @@
                     </div>`;
                 return;
             }
+            const summary = formatConnectionSummary(devices);
             container.innerHTML = `
                 <div style="padding:16px 20px;background:#16213e;border-radius:8px;border-left:4px solid #4caf50;">
                     <p style="font-size:14px;color:#ccc;">
-                        <strong style="color:#69f0ae;">${devices.length}</strong> chassis detected.
-                        Use <strong>Chassis</strong> tabs → <strong>NI Device</strong> → per-channel Read/Write.
+                        <strong style="color:#69f0ae;">${devices.length}</strong> device(s) connected
+                        ${summary ? `(${summary})` : ''}.
+                        Use <strong>USB</strong> / <strong>Ethernet</strong> tabs → per-line <strong>True/False</strong>, or <strong>All True</strong> / <strong>All False</strong>.
                     </p>
                 </div>`;
+        }
+
+        function deviceTabLabel(device, deviceIdx, allDevices) {
+            const conn = device.connection_type || 'Unknown';
+            if (conn === 'USB') {
+                const usbNum = allDevices
+                    .slice(0, deviceIdx + 1)
+                    .filter(d => d.connection_type === 'USB').length;
+                const usbTotal = allDevices.filter(d => d.connection_type === 'USB').length;
+                return usbTotal > 1 ? `USB ${usbNum}` : 'USB';
+            }
+            if (conn === 'Ethernet') {
+                return `Ethernet - ${device.name}`;
+            }
+            return `Device ${deviceIdx + 1}`;
+        }
+
+        function moduleTabLabel(displayIdx) {
+            return `NI DAQ ${displayIdx + 1}`;
+        }
+
+        function shortDigitalName(ch) {
+            const parts = ch.split('/');
+            const port = parts.find(p => /^port\d+$/i.test(p));
+            const line = parts.find(p => /^line\d+$/i.test(p));
+            if (port && line) {
+                return `${port.replace(/^port/i, 'P')}/${line.replace(/^line/i, 'L')}`;
+            }
+            return shortChannelName(ch);
+        }
+
+        function digitalChannelsForModule(mod) {
+            return mod.do_channels || [];
+        }
+
+        function moduleHasDigital(mod) {
+            return (mod.do_channels?.length || 0) > 0;
         }
 
         function shortChannelName(ch) {
@@ -290,8 +387,34 @@
         }
 
         function moduleHasChannels(mod) {
-            return mod.ai_channels?.length || mod.ao_channels?.length ||
-                mod.di_channels?.length || mod.do_channels?.length;
+            return mod.ai_channels?.length || mod.ao_channels?.length || moduleHasDigital(mod);
+        }
+
+        function renderDigitalModuleToolbar(di, mi, mod) {
+            if (!moduleHasDigital(mod)) return '';
+            return `
+            <div class="dio-module-toolbar">
+                <button class="btn-success btn-sm" onclick="writeDigitalModule(${di},${mi},true)">All True</button>
+                <button class="btn-danger btn-sm" onclick="writeDigitalModule(${di},${mi},false)">All False</button>
+            </div>`;
+        }
+
+        function renderDigitalChannelRow(di, mi, ci, channel, mod) {
+            const id = `${di}_${mi}_dio_${ci}`;
+            return `
+            <div class="channel-row digital-row" data-channel="${channel}" data-dio-id="${id}">
+                <span class="channel-name">${shortDigitalName(channel)}</span>
+                <div class="digital-io-bar">
+                    <div class="dio-live">
+                        <span class="channel-type write">STATUS</span>
+                        <span class="dio-value" id="dio_val_${id}">--</span>
+                    </div>
+                    <div class="dio-section">
+                        <button class="btn-success btn-sm" onclick="writeDigitalChannel(${di},${mi},'${id}',true)">True</button>
+                        <button class="btn-danger btn-sm" onclick="writeDigitalChannel(${di},${mi},'${id}',false)">False</button>
+                    </div>
+                </div>
+            </div>`;
         }
 
         function renderAoChannelRow(di, mi, ci, channel, mod) {
@@ -333,7 +456,7 @@
         }
 
         function renderModuleChannels(di, mi, mod) {
-            let html = '';
+            let html = renderDigitalModuleToolbar(di, mi, mod);
             (mod.ai_channels || []).forEach((ch, ci) => {
                 const id = `${di}_${mi}_ai_${ci}`;
                 html += `
@@ -349,29 +472,8 @@
             (mod.ao_channels || []).forEach((ch, ci) => {
                 html += renderAoChannelRow(di, mi, ci, ch, mod);
             });
-            (mod.di_channels || []).forEach((ch, ci) => {
-                const id = `${di}_${mi}_di_${ci}`;
-                html += `
-                <div class="channel-row" data-channel="${ch}">
-                    <span class="channel-name">${shortChannelName(ch)}</span>
-                    <span class="channel-type read">READ</span>
-                    <div class="channel-controls">
-                        <button class="btn-success" onclick="readDIChannel(${di},${mi},'${id}')">Read</button>
-                    </div>
-                    <span class="channel-value" id="val_${id}">--</span>
-                </div>`;
-            });
-            (mod.do_channels || []).forEach((ch, ci) => {
-                const id = `${di}_${mi}_do_${ci}`;
-                html += `
-                <div class="channel-row" data-channel="${ch}">
-                    <span class="channel-name">${shortChannelName(ch)}</span>
-                    <span class="channel-type write">WRITE</span>
-                    <div class="channel-controls">
-                        <button class="btn-secondary" onclick="toggleDOChannel(${di},${mi},'${id}')">Toggle</button>
-                    </div>
-                    <span class="channel-value" id="val_${id}">--</span>
-                </div>`;
+            digitalChannelsForModule(mod).forEach((ch, ci) => {
+                html += renderDigitalChannelRow(di, mi, ci, ch, mod);
             });
             return html || '<p style="color:#888;padding:12px;">No channels on this module.</p>';
         }
@@ -388,9 +490,10 @@
                     .map((mod, origIdx) => ({ mod, origIdx }))
                     .filter(({ mod }) => moduleHasChannels(mod));
 
+                const conn = device.connection_type || 'Unknown';
                 const btn = document.createElement('button');
                 btn.className = 'tab-btn';
-                btn.textContent = `🔌 Chassis ${di + 1}`;
+                btn.textContent = deviceTabLabel(device, di, devices);
                 btn.title = device.name;
                 btn.onclick = () => switchChassisTab(chassisId, btn);
                 tabContainer.appendChild(btn);
@@ -400,9 +503,10 @@
                 modules.forEach(({ mod, origIdx: mi }, displayIdx) => {
                     const modId = `chassis-${di}-mod-${mi}`;
                     const active = displayIdx === 0 ? 'active' : '';
+                    const modLabel = moduleTabLabel(displayIdx);
                     moduleTabsHtml += `
                         <button class="tab-btn-module ${active}" onclick="switchModuleTab(${di},${mi}, this)">
-                            NI Device ${displayIdx + 1}
+                            ${modLabel}
                             <span style="color:#666;font-weight:normal;">(${mod.product_type || mod.name})</span>
                         </button>`;
                     modulePanelsHtml += `
@@ -418,7 +522,7 @@
                 panel.innerHTML = `
                     <div class="chassis-header">
                         <div class="device-header">
-                            <span class="badge ${device.connection_type.toLowerCase()}">${device.connection_type}</span>
+                            <span class="badge ${connectionBadgeClass(device.connection_type)}">${device.connection_type}</span>
                             <span class="device-name">${device.name}</span>
                             <span class="device-type">${device.product_type}</span>
                             <span class="badge ${device.status === 'Connected' ? 'connected' : 'disconnected'}">${device.status}</span>
@@ -432,15 +536,12 @@
                     ${modules.length ? `
                         <div class="tabs-module">${moduleTabsHtml}</div>
                         ${modulePanelsHtml}
-                    ` : '<p style="color:#888;padding:16px;">No I/O modules on this chassis.</p>'}
+                    ` : '<p style="color:#888;padding:16px;">No I/O channels on this device.</p>'}
                 `;
                 panelsContainer.appendChild(panel);
             });
 
-            if (devices.length > 0 && currentTab === 'dashboard') {
-                const first = tabContainer.querySelector('.tab-btn:not(:first-child)');
-                if (first) first.click();
-            }
+
         }
 
         function updateAoChannelControls(id) {
@@ -462,7 +563,10 @@
         }
 
         function channelFromId(id) {
-            const el = document.getElementById(`ao_sig_${id}`) || document.getElementById(`val_${id}`);
+            const dioRow = document.querySelector(`[data-dio-id="${id}"]`);
+            if (dioRow?.dataset?.channel) return dioRow.dataset.channel;
+            const el = document.getElementById(`ao_sig_${id}`)
+                || document.getElementById(`dio_val_${id}`);
             return el?.closest('.channel-row')?.dataset?.channel;
         }
 
@@ -512,21 +616,64 @@
             }
         }
 
-        async function readDIChannel(di, mi, id) {
-            const channel = channelFromId(id);
-            const result = await apiCall('/api/di/read', 'POST', { device_idx: di, module_idx: mi, channel });
-            if (result) document.getElementById(`val_${id}`).textContent = result.values?.[0] || '--';
+        function formatDigitalValue(val) {
+            if (val === true || val === 'true') return { text: 'True', cls: 'true-val' };
+            if (val === false || val === 'false') return { text: 'False', cls: 'false-val' };
+            return { text: '--', cls: '' };
         }
 
-        async function toggleDOChannel(di, mi, id) {
-            const channel = channelFromId(id);
-            const result = await apiCall('/api/do/toggle', 'POST', { device_idx: di, module_idx: mi, channel });
-            if (result) {
-                const text = result.state ? 'HIGH' : 'LOW';
-                document.getElementById(`val_${id}`).textContent = text;
-                showToast(`${shortChannelName(channel)}: ${text}`);
+        function setDigitalValue(elId, val) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const { text, cls } = formatDigitalValue(val);
+            el.textContent = text;
+            el.className = `dio-value ${cls}`.trim();
+        }
+
+        function applyModuleDigitalStates(di, mi, states) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            if (!mod || !states) return;
+            const channels = digitalChannelsForModule(mod);
+            for (const [channel, value] of Object.entries(states)) {
+                const ci = channels.indexOf(channel);
+                if (ci < 0) continue;
+                const id = `${di}_${mi}_dio_${ci}`;
+                setDigitalValue(`dio_val_${id}`, value);
             }
         }
+
+
+        async function writeDigitalModule(di, mi, state) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const count = mod?.do_channels?.length || 0;
+            if (!count) {
+                showToast('No writable channels', 'error');
+                return;
+            }
+            const result = await apiCall('/api/do/write-module', 'POST', {
+                device_idx: di, module_idx: mi, uniform_state: state
+            }, 60000);
+            if (result?.states) {
+                applyModuleDigitalStates(di, mi, result.states);
+                showToast(`All ${count} channel(s) → ${state ? 'True' : 'False'}`);
+            }
+        }
+
+        async function writeDigitalChannel(di, mi, id, state) {
+            const channel = channelFromId(id);
+            if (!channel) {
+                showToast('Channel not found', 'error');
+                return;
+            }
+            const result = await apiCall('/api/do/write', 'POST', {
+                device_idx: di, module_idx: mi, channel, state
+            });
+            if (result) {
+                setDigitalValue(`dio_val_${id}`, result.state);
+                showToast(`${shortDigitalName(channel)}: ${result.state ? 'True' : 'False'}`);
+            }
+        }
+
 
         async function addNetworkDevice() {
             const ip = document.getElementById('netDeviceIp')?.value?.trim();

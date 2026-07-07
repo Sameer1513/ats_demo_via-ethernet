@@ -15,7 +15,7 @@ Supports:
     - Device discovery and management
     - Analog input (single + continuous)
     - Analog output (DC + AC with waveforms)
-    - Digital I/O (read + toggle)
+    - Digital output (True/False per line, All True/All False)
     - System log viewing
 """
 
@@ -57,6 +57,9 @@ device_manager = DeviceManager()
 # Active task tracking
 _active_ai_tasks: dict = {}
 _active_ao_tasks: dict = {}
+_dio_controllers: dict = {}
+_dio_controllers: dict = {}
+_dio_controllers: dict = {}
 
 
 def _ao_task_key(device_idx: int, module_idx: int, channel: str) -> str:
@@ -98,58 +101,75 @@ def get_controller(device_idx: int, module_idx: int):
     return device, device.modules[module_idx], None
 
 
+def get_dio_controller(device_idx: int, module_idx: int, module):
+    """Reuse DigitalIOController per module so port output tasks persist."""
+    key = f"{device_idx}_{module_idx}"
+    if key not in _dio_controllers:
+        _dio_controllers[key] = DigitalIOController(task_manager, module)
+    return _dio_controllers[key]
+
+
+def reset_all_dio_controllers() -> None:
+    """Release digital I/O tasks and cached state (call on device refresh)."""
+    for controller in list(_dio_controllers.values()):
+        controller.cleanup()
+    _dio_controllers.clear()
+
+
 def _build_device_details(devices) -> list:
     """Serialize DeviceInfo list for the JSON API."""
-    device_details = []
-    for device in devices:
-        modules_data = []
-        for mod in device.modules:
-            modules_data.append({
-                'name': mod.name,
-                'slot_number': mod.slot_number,
-                'product_type': mod.product_type,
-                'serial_number': mod.serial_number,
-                'supported_operations': mod.supported_operations,
-                'ai_channels': mod.ai_channels,
-                'ao_channels': mod.ao_channels,
-                'di_channels': mod.di_channels,
-                'do_channels': mod.do_channels,
-                'ci_channels': mod.ci_channels,
-                'co_channels': mod.co_channels,
-                'voltage_ranges': [f"{r[0]:.1f} to {r[1]:.1f} V" for r in mod.voltage_ranges],
-                'max_sample_rate': mod.max_sample_rate,
-                'is_simulated': mod.is_simulated,
-                'ao_output_unit': (
-                    'current' if '9266' in (mod.product_type or '').upper() else 'voltage'
-                ),
-            })
+    return [_serialize_device(device) for device in devices]
 
-        device_details.append({
-            'name': device.name,
-            'product_type': device.product_type,
-            'serial_number': device.serial_number,
-            'connection_type': device.connection_type.value,
-            'ip_address': device.ip_address,
-            'status': device.status.value,
-            'module_count': len(device.modules),
-            'ai_channels': len(device.ai_channels),
-            'ao_channels': len(device.ao_channels),
-            'di_channels': len(device.di_channels),
-            'do_channels': len(device.do_channels),
-            'is_simulated': device.is_simulated,
-            'modules': modules_data,
+
+def _serialize_device(device) -> dict:
+    """Serialize a single DeviceInfo for the JSON API."""
+    modules_data = []
+    for mod in device.modules:
+        modules_data.append({
+            'name': mod.name,
+            'slot_number': mod.slot_number,
+            'product_type': mod.product_type,
+            'serial_number': mod.serial_number,
+            'supported_operations': mod.supported_operations,
+            'ai_channels': mod.ai_channels,
+            'ao_channels': mod.ao_channels,
+            'di_channels': mod.di_channels,
+            'do_channels': mod.do_channels,
+            'ci_channels': mod.ci_channels,
+            'co_channels': mod.co_channels,
+            'voltage_ranges': [f"{r[0]:.1f} to {r[1]:.1f} V" for r in mod.voltage_ranges],
+            'max_sample_rate': mod.max_sample_rate,
+            'is_simulated': mod.is_simulated,
+            'ao_output_unit': (
+                'current' if '9266' in (mod.product_type or '').upper() else 'voltage'
+            ),
         })
-    return device_details
+
+    return {
+        'name': device.name,
+        'product_type': device.product_type,
+        'serial_number': device.serial_number,
+        'connection_type': device.connection_type.value,
+        'ip_address': device.ip_address,
+        'status': device.status.value,
+        'module_count': len(device.modules),
+        'ai_channels': len(device.ai_channels),
+        'ao_channels': len(device.ao_channels),
+        'di_channels': len(device.di_channels),
+        'do_channels': len(device.do_channels),
+        'is_simulated': device.is_simulated,
+        'modules': modules_data,
+    }
 
 
 def _device_api_payload(devices, *, scanned: bool) -> dict:
     """Build /api/devices JSON body from a device list."""
     device_details = _build_device_details(devices)
-    connected = len(device_manager.get_connected_devices())
-    total = len(devices)
+    connected = len(device_details)
+    total = connected
 
     if scanned:
-        add_log(f"Device discovery: {total} device(s) found")
+        add_log(f"Device discovery: {connected} device(s) found")
 
     hints = []
     if scanned:
@@ -158,21 +178,31 @@ def _device_api_payload(devices, *, scanned: bool) -> dict:
             hints.append(f"NI-DAQmx scan error: {discovery_error}")
     if not device_details and scanned:
         hints.append(
-            "NI MAX may list chassis under Network Devices before they are added to "
-            "this PC. In MAX, select the device and click Add Device, then reserve it."
+            "USB DAQ devices appear automatically when plugged in and visible in NI MAX. "
+            "For Ethernet cDAQ, add and reserve the chassis in NI MAX (or use Add Network "
+            "Device below), then click Refresh."
         )
 
-    status = f"{connected}/{total} devices connected"
-    if total == 0 and not scanned:
+    connection_summary = device_manager.get_connection_summary()
+
+    status = f"{connected} device(s) connected"
+    if connection_summary:
+        breakdown = ", ".join(
+            f"{n} {t}" for t, n in sorted(connection_summary.items())
+        )
+        status = f"{connected} connected ({breakdown})"
+    elif total == 0 and not scanned:
         status = "No devices cached — click Refresh to scan"
 
-    return {
+    payload = {
         'devices': device_details,
         'status': status,
+        'connection_summary': connection_summary,
         'cached': not scanned,
         'log': _log_entries[-30:],
         'hints': hints,
     }
+    return payload
 
 
 # ===================== API Routes =====================
@@ -192,6 +222,7 @@ def api_devices():
         refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
         if refresh:
             devices = device_manager.discover_devices()
+            reset_all_dio_controllers()
         else:
             devices = device_manager.get_all_devices()
 
@@ -467,42 +498,68 @@ def api_ao_stop():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/di/read', methods=['POST'])
-def api_di_read():
-    """API: Read digital input."""
+@app.route('/api/do/write', methods=['POST'])
+def api_do_write():
+    """API: Set digital output to true or false."""
     try:
         data = request.json
         di, mi = data['device_idx'], data['module_idx']
-        channel = data.get('channel')
+        channel = data['channel']
+        state = bool(data.get('state', False))
 
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
 
-        controller = DigitalIOController(task_manager, module)
-        channels = [channel] if channel else None
-        values = controller.read_digital_input(channels)
+        controller = get_dio_controller(di, mi, module)
+        if controller.set_output_line(channel, state):
+            add_log(f"DO write: {channel} -> {state}")
+            return jsonify({'state': state, 'success': True})
 
-        if values:
-            if channel:
-                v = values.get(channel)
-                if v is None:
-                    for ch_name, ch_val in values.items():
-                        if ch_name.endswith('/' + channel) or ch_name.split('/')[-1] == channel:
-                            v = ch_val
-                            break
-                if v is None:
-                    return jsonify({'error': 'Channel not found'}), 404
-                formatted = [f"{'HIGH' if v else 'LOW'}"]
-                return jsonify({'values': formatted, 'value': v, 'success': True})
-            formatted = [
-                f"{ch.split('/')[-1]}: {'HIGH' if v else 'LOW'}"
-                for ch, v in values.items()
-            ]
-            add_log(f"DI read: {device.name}/{module.name}")
-            return jsonify({'values': formatted, 'success': True})
-        
-        return jsonify({'error': 'No data'}), 500
+        return jsonify({
+            'error': (
+                'Digital write failed. In NI MAX, set the port direction to '
+                'Output for lines you want to drive.'
+            ),
+        }), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/do/write-module', methods=['POST'])
+def api_do_write_module():
+    """API: Write all digital lines on one module to the same state."""
+    try:
+        data = request.json or {}
+        di, mi = data['device_idx'], data['module_idx']
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        states = data.get('states')
+        if data.get('uniform_state') is not None:
+            uniform = bool(data['uniform_state'])
+            states = {ch: uniform for ch in (module.do_channels or [])}
+
+        if not states:
+            return jsonify({'error': 'No channels to write'}), 400
+
+        controller = get_dio_controller(di, mi, module)
+        if controller.write_digital_output(states):
+            display = controller.get_all_output_states()
+            add_log(f"DO write-all: {len(states)} channel(s) on {module.name}")
+            return jsonify({
+                'states': {ch: bool(v) for ch, v in display.items()},
+                'success': True,
+            })
+
+        return jsonify({
+            'error': (
+                'Digital write-all failed. In NI MAX, set port direction to '
+                'Output for lines you want to drive.'
+            ),
+        }), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -519,7 +576,7 @@ def api_do_toggle():
         if error:
             return jsonify({'error': error}), 400
         
-        controller = DigitalIOController(task_manager, module)
+        controller = get_dio_controller(di, mi, module)
         state = controller.toggle_output(channel)
         
         if state is not None:
@@ -558,7 +615,13 @@ def api_status():
 
 _start_time = time.time()
 
-if __name__ == '__main__':
+
+def main() -> None:
+    """Start the NI DAQ Controller web server."""
+    import logging
+    # Flask's built-in server is for local/dev use only — suppress the banner noise.
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+
     print()
     print("=" * 60)
     print("  NI DAQ Controller - Web Interface")
@@ -566,32 +629,34 @@ if __name__ == '__main__':
     print()
     print("  Starting server...")
     print()
-    
-    # Perform initial device discovery with timeout
+
     add_log("Starting NI DAQ Controller web server...")
     devices = device_manager.discover_devices()
     add_log(f"Detected {len(devices)} device(s)")
-    
-    print(f"  ✓ Device discovery: {len(devices)} device(s)")
-    print(f"  ✓ Web server running on http://localhost:5000")
+
+    print(f"  OK Device discovery: {len(devices)} device(s)")
+    print("  OK Web server running on http://localhost:5000")
     print()
     print("  Open in your browser:  http://localhost:5000")
     print()
     print("  Press Ctrl+C to stop")
     print("=" * 60)
     print()
-    
-    # Run Flask app
+
     try:
         app.run(
             host='0.0.0.0',
             port=5000,
             debug=False,
-            use_reloader=False
+            use_reloader=False,
         )
     except Exception as e:
         log.error("Server error: %s", e)
         print(f"\n  ERROR: {e}\n")
+
+
+if __name__ == '__main__':
+    main()
 else:
     # When imported, do initial discovery
     add_log("NI DAQ Controller module loaded")

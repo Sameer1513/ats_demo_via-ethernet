@@ -22,6 +22,7 @@ Typical usage:
     dio.write_digital({"port0/line0": True, "port0/line1": False})
 """
 
+import re
 import time
 import threading
 import numpy as np
@@ -29,7 +30,7 @@ from typing import List, Optional, Tuple, Dict, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from logger import get_logger
-from task_manager import TaskManager
+from task_manager import TaskManager, channel_on_port
 from device_manager import ModuleInfo
 
 log = get_logger(__name__)
@@ -124,6 +125,9 @@ class DigitalIOController:
         self._monitoring = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._monitor_callbacks: List[Callable] = []
+        # USB-6509: one DO task per port (all 8 lines), cached line states
+        self._port_do_tasks: Dict[str, str] = {}
+        self._port_line_states: Dict[str, List[bool]] = {}
 
         # Parse digital channel information
         self._di_channels: List[DigitalChannelInfo] = []
@@ -281,6 +285,69 @@ class DigitalIOController:
         """
         return len(self._counter_channels) > 0
 
+    def _uses_port_shared_dio(self) -> bool:
+        """USB-6509-style hardware: each port is input OR output, not both."""
+        product = (self.module_info.product_type or '').upper()
+        if '6509' in product or '6508' in product or '6504' in product:
+            return True
+        di = self.module_info.di_channels
+        do = self.module_info.do_channels
+        return bool(di and do and di == do)
+
+    @staticmethod
+    def _port_key(channel: str) -> str:
+        parts = channel.split('/')
+        if parts and parts[-1].lower().startswith('line'):
+            key = '/'.join(parts[:-1])
+            return key if key else channel
+        if len(parts) >= 2:
+            return '/'.join(parts[:2])
+        return channel
+
+    @staticmethod
+    def _line_index(channel: str) -> int:
+        tail = channel.split('/')[-1].lower()
+        return int(tail.replace('line', ''))
+
+    def _port_sort_key(self, port_key: str) -> int:
+        match = re.search(r'port(\d+)', port_key, re.IGNORECASE)
+        return int(match.group(1)) if match else 0
+
+    def _iter_port_keys(self) -> List[str]:
+        ports = {
+            self._port_key(ch)
+            for ch in (self.module_info.do_channels or [])
+        }
+        return sorted(ports, key=self._port_sort_key)
+
+    def _channels_for_port(self, port_key: str) -> List[str]:
+        return sorted(
+            [
+                ch for ch in (self.module_info.do_channels or [])
+                if channel_on_port(ch, port_key)
+            ],
+            key=self._line_index,
+        )
+
+    def _release_di_on_port(self, port_key: str) -> None:
+        """Drop DI task if it uses lines on this port (required before DO on USB-6509)."""
+        if self._di_task:
+            info = self.task_manager.get_task_info(self._di_task)
+            if info and any(channel_on_port(ch, port_key) for ch in info.channels):
+                self.task_manager.clear_task(self._di_task)
+                self._di_task = None
+
+    def _port_line_state(self, port_key: str) -> List[bool]:
+        port_channels = self._channels_for_port(port_key)
+        if port_key in self._port_line_states:
+            return self._port_line_states[port_key]
+        line_states = [
+            bool(self._output_states.get(ch, False))
+            for ch in port_channels
+        ]
+        self._port_line_states[port_key] = line_states
+        return line_states
+
     def read_digital_input(self,
                             channels: Optional[List[str]] = None) -> Optional[Dict[str, bool]]:
         """
@@ -359,6 +426,9 @@ class DigitalIOController:
                 log.error("Invalid DO channel: %s", channel)
                 return False
 
+        if self._uses_port_shared_dio():
+            return self._write_port_shared_output(states)
+
         # Create task if not exists
         if self._do_task is None:
             task_name = self.task_manager.create_do_task(
@@ -389,6 +459,55 @@ class DigitalIOController:
 
         except Exception as e:
             log.error("Failed to write digital output: %s", e)
+            return False
+
+    def _write_port_shared_output(self, states: Dict[str, bool]) -> bool:
+        """Write DIO on USB-6509: full port write, persistent task per port."""
+        by_port: Dict[str, Dict[str, bool]] = {}
+        for channel, value in states.items():
+            by_port.setdefault(self._port_key(channel), {})[channel] = value
+
+        try:
+            for port_key in sorted(by_port.keys(), key=self._port_sort_key):
+                port_states = by_port[port_key]
+                port_channels = self._channels_for_port(port_key)
+                if not port_channels:
+                    log.error("No DO channels on port %s", port_key)
+                    return False
+
+                self._release_di_on_port(port_key)
+                line_states = self._port_line_state(port_key)
+
+                for channel, value in port_states.items():
+                    idx = self._line_index(channel)
+                    if 0 <= idx < len(line_states):
+                        line_states[idx] = bool(value)
+
+                task_name = self._port_do_tasks.get(port_key)
+                if task_name and not self.task_manager.get_task_info(task_name):
+                    self._port_do_tasks.pop(port_key, None)
+                    task_name = None
+
+                if not task_name:
+                    task_name = self.task_manager.create_do_task(
+                        self.device_name, port_channels,
+                    )
+                    if task_name is None:
+                        return False
+                    self._port_do_tasks[port_key] = task_name
+
+                if not self.task_manager.write_digital(task_name, line_states):
+                    return False
+
+                self._port_line_states[port_key] = line_states
+                with self._lock:
+                    for ch, val in zip(port_channels, line_states):
+                        self._output_states[ch] = bool(val)
+
+            return True
+
+        except Exception as e:
+            log.error("Failed to write port-shared digital output: %s", e)
             return False
 
     def set_output_line(self, channel: str, state: bool) -> bool:
@@ -435,12 +554,11 @@ class DigitalIOController:
         Returns:
             New state if successful, None otherwise
         """
-        current = self._output_states.get(channel)
-        if current is None:
+        if channel not in self._output_states:
             log.error("Unknown output channel: %s", channel)
             return None
 
-        new_state = not current
+        new_state = not self._output_states[channel]
         if self.set_output_line(channel, new_state):
             return new_state
         return None
@@ -626,6 +744,10 @@ class DigitalIOController:
 
     def cleanup(self) -> None:
         """Clean up all resources."""
+        self.reset_io_state()
+
+    def reset_io_state(self) -> None:
+        """Release held DO/DI tasks and cached line state."""
         self.stop_digital_monitoring()
 
         # Clear digital tasks
@@ -637,5 +759,11 @@ class DigitalIOController:
             self.task_manager.clear_task(self._do_task)
             self._do_task = None
 
+        for port_key in list(self._port_do_tasks.keys()):
+            task_name = self._port_do_tasks.pop(port_key, None)
+            if task_name:
+                self.task_manager.clear_task(task_name)
+
+        self._port_line_states.clear()
         self._output_states.clear()
         log.info("DigitalIOController cleaned up")

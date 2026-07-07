@@ -31,6 +31,14 @@ from logger import get_logger
 log = get_logger(__name__)
 
 
+def channel_on_port(channel: str, port_key: str) -> bool:
+    """True if channel belongs to port_key (Dev6/port1 must not match Dev6/port10)."""
+    pk = port_key.rstrip('/')
+    if channel == pk:
+        return True
+    return channel.startswith(pk + '/')
+
+
 def _physical_channel_string(device_name: str, channels: List[str]) -> str:
     """Build NI-DAQmx channel list; accept full paths or short names."""
     parts: List[str] = []
