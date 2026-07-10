@@ -431,6 +431,47 @@ class TaskManager:
             self._cleanup_task(task_name)
             return None
 
+    def create_do_port_task(self,
+                            device_name: str,
+                            port_key: str,
+                            line_channels: Optional[List[str]] = None) -> Optional[str]:
+        """
+        Create a digital output task on one port (USB-6509).
+
+        Uses a single port channel so outputs stay latched while the task is open.
+        """
+        if not self._check_nidaqmx():
+            return None
+
+        task_name = self._generate_task_name(device_name, TaskType.DIGITAL_OUTPUT)
+
+        try:
+            task = self._nidaqmx.Task(task_name)
+            task.do_channels.add_do_chan(port_key)
+
+            channels = line_channels or [port_key]
+            task_info = TaskInfo(
+                name=task_name,
+                device_name=device_name,
+                channels=channels,
+                task_type=TaskType.DIGITAL_OUTPUT,
+            )
+
+            with self._lock:
+                self._tasks[task_name] = task_info
+                self._nidaqmx_tasks[task_name] = task
+
+            log.info(
+                "Created DO port task '%s' on %s, port=%s",
+                task_name, device_name, port_key,
+            )
+            return task_name
+
+        except Exception as e:
+            log.error("Failed to create DO port task on %s: %s", port_key, e)
+            self._cleanup_task(task_name)
+            return None
+
     def read_analog(self, task_name: str,
                     timeout: float = 10.0) -> Optional[np.ndarray]:
         """
@@ -592,12 +633,35 @@ class TaskManager:
 
         try:
             task.write(values, auto_start=auto_start)
+            if auto_start:
+                self._update_task_state(task_name, TaskState.RUNNING)
             log.debug("Wrote digital values to task '%s'", task_name)
             return True
 
         except Exception as e:
             log.error("Failed to write digital to '%s': %s", task_name, e)
             self._update_task_state(task_name, TaskState.ERROR, str(e))
+            return False
+
+    def write_do_line(self, channel: str, value: bool) -> bool:
+        """
+        Drive one NI digital output line.
+
+        Uses a short-lived task per write (same pattern as NI MAX / R501):
+            with Task(): add_do_chan(line); write(value)
+        """
+        if not self._check_nidaqmx():
+            return False
+
+        try:
+            import nidaqmx
+            with nidaqmx.Task() as task:
+                task.do_channels.add_do_chan(channel)
+                task.write(bool(value), auto_start=True)
+            log.info("Wrote DO line %s = %s", channel, value)
+            return True
+        except Exception as e:
+            log.error("Failed to write DO line %s = %s: %s", channel, value, e)
             return False
 
     def start_task(self, task_name: str) -> bool:
@@ -868,6 +932,21 @@ class TaskManager:
             List of TaskInfo objects
         """
         return list(self._tasks.values())
+
+    def clear_tasks_for_port(self, device_name: str, port_key: str) -> int:
+        """
+        Release any task that uses channels on the given port.
+
+        USB-6509 ports are input OR output; a lingering DI task blocks DO writes.
+        """
+        cleared = 0
+        for task_info in self.get_all_tasks():
+            if task_info.device_name != device_name:
+                continue
+            if any(channel_on_port(ch, port_key) for ch in task_info.channels):
+                if self.clear_task(task_info.name):
+                    cleared += 1
+        return cleared
 
     def get_active_tasks(self) -> List[TaskInfo]:
         """

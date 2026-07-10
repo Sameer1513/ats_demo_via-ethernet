@@ -121,13 +121,14 @@ class DigitalIOController:
         self._di_task: Optional[str] = None
         self._do_task: Optional[str] = None
         self._output_states: Dict[str, bool] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._monitoring = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._monitor_callbacks: List[Callable] = []
         # USB-6509: one DO task per port (all 8 lines), cached line states
         self._port_do_tasks: Dict[str, str] = {}
         self._port_line_states: Dict[str, List[bool]] = {}
+        self._last_failed_ports: List[int] = []
 
         # Parse digital channel information
         self._di_channels: List[DigitalChannelInfo] = []
@@ -329,13 +330,42 @@ class DigitalIOController:
             key=self._line_index,
         )
 
-    def _release_di_on_port(self, port_key: str) -> None:
-        """Drop DI task if it uses lines on this port (required before DO on USB-6509)."""
+    def _release_blocking_tasks_on_port(self, port_key: str) -> None:
+        """Clear DI/foreign tasks on a port but keep our latched DO task."""
         if self._di_task:
             info = self.task_manager.get_task_info(self._di_task)
             if info and any(channel_on_port(ch, port_key) for ch in info.channels):
                 self.task_manager.clear_task(self._di_task)
                 self._di_task = None
+
+        owned_do = self._port_do_tasks.get(port_key)
+        for task_info in list(self.task_manager.get_all_tasks()):
+            if task_info.device_name != self.device_name:
+                continue
+            if task_info.name == owned_do:
+                continue
+            if any(channel_on_port(ch, port_key) for ch in task_info.channels):
+                self.task_manager.clear_task(task_info.name)
+                for pk, tn in list(self._port_do_tasks.items()):
+                    if tn == task_info.name:
+                        self._port_do_tasks.pop(pk, None)
+
+    def _drop_port_do_task(self, port_key: str) -> None:
+        """Release persistent port DO task so a fresh line task can drive hardware."""
+        task_name = self._port_do_tasks.pop(port_key, None)
+        if task_name:
+            self.task_manager.clear_task(task_name)
+
+    def _apply_port_line_states(
+        self,
+        port_key: str,
+        port_channels: List[str],
+        line_states: List[bool],
+    ) -> None:
+        self._port_line_states[port_key] = list(line_states)
+        with self._lock:
+            for ch, val in zip(port_channels, line_states):
+                self._output_states[ch] = bool(val)
 
     def _port_line_state(self, port_key: str) -> List[bool]:
         port_channels = self._channels_for_port(port_key)
@@ -404,6 +434,77 @@ class DigitalIOController:
             log.error("Failed to read digital input: %s", e)
             return None
 
+    def get_last_failed_ports(self) -> List[int]:
+        """Port numbers that failed on the last write (NI MAX Input direction, etc.)."""
+        return list(self._last_failed_ports)
+
+    def test_ports(self) -> Dict[int, Dict[str, Any]]:
+        """Test each DO port with full-port True then False writes."""
+        results: Dict[int, Dict[str, Any]] = {}
+        line_results = self.test_lines()
+        by_port: Dict[int, List[bool]] = {}
+        for key, info in line_results.items():
+            pn = info.get('port', -1)
+            by_port.setdefault(pn, []).append(bool(info.get('ok')))
+        for pn, oks in by_port.items():
+            results[pn] = {
+                'ok': all(oks) if oks else False,
+                'lines': len(oks),
+                'lines_ok': sum(1 for x in oks if x),
+                'message': 'OK' if all(oks) else 'One or more lines failed',
+            }
+        return results
+
+    def _channel_for_port_line(self, port: int, line: int) -> Optional[str]:
+        for port_key in self._iter_port_keys():
+            if self._port_sort_key(port_key) != port:
+                continue
+            for ch in self._channels_for_port(port_key):
+                if self._line_index(ch) == line:
+                    return ch
+        return None
+
+    def test_one_line(self, port: int, line: int) -> Dict[str, Any]:
+        """Test a single DO line (True then False)."""
+        ch = self._channel_for_port_line(port, line)
+        if not ch:
+            return {
+                'ok': False,
+                'found': False,
+                'port': port,
+                'line': line,
+                'channel': None,
+                'ni_line': f"P{port}.{line}",
+                'message': 'Channel not found',
+            }
+        ok_true = self.write_digital_output({ch: True})
+        failed = set(self.get_last_failed_ports())
+        ok_false = self.write_digital_output({ch: False})
+        failed |= set(self.get_last_failed_ports())
+        ok = ok_true and ok_false and port not in failed
+        return {
+            'ok': ok,
+            'found': True,
+            'port': port,
+            'line': line,
+            'channel': ch,
+            'ni_line': f"P{port}.{line}",
+            'message': 'OK' if ok else 'Write failed',
+        }
+
+    def test_lines(self) -> Dict[str, Dict[str, Any]]:
+        """Test each DO line individually (True then False), one at a time."""
+        results: Dict[str, Dict[str, Any]] = {}
+        if not self.has_digital_output():
+            return results
+        for port_key in self._iter_port_keys():
+            port_num = self._port_sort_key(port_key)
+            for ch in self._channels_for_port(port_key):
+                line_num = self._line_index(ch)
+                key = f"{port_num}.{line_num}"
+                results[key] = self.test_one_line(port_num, line_num)
+        return results
+
     def write_digital_output(self,
                               states: Dict[str, bool]) -> bool:
         """
@@ -415,9 +516,15 @@ class DigitalIOController:
         Returns:
             True if write succeeded, False otherwise
         """
+        with self._lock:
+            return self._write_digital_output_unlocked(states)
+
+    def _write_digital_output_unlocked(self, states: Dict[str, bool]) -> bool:
         if not self.has_digital_output():
             log.warning("No digital output channels available on %s", self.device_name)
             return False
+
+        self._last_failed_ports = []
 
         # Validate channels
         valid_channels = set(ch.name for ch in self._do_channels)
@@ -462,22 +569,45 @@ class DigitalIOController:
             return False
 
     def _write_port_shared_output(self, states: Dict[str, bool]) -> bool:
-        """Write DIO on USB-6509: full port write, persistent task per port."""
+        """Write DIO on USB-6509."""
         by_port: Dict[str, Dict[str, bool]] = {}
         for channel, value in states.items():
             by_port.setdefault(self._port_key(channel), {})[channel] = value
 
+        any_ok = False
         try:
             for port_key in sorted(by_port.keys(), key=self._port_sort_key):
                 port_states = by_port[port_key]
                 port_channels = self._channels_for_port(port_key)
                 if not port_channels:
                     log.error("No DO channels on port %s", port_key)
-                    return False
+                    self._last_failed_ports.append(self._port_sort_key(port_key))
+                    continue
 
-                self._release_di_on_port(port_key)
-                line_states = self._port_line_state(port_key)
+                self._release_blocking_tasks_on_port(port_key)
+                port_num = self._port_sort_key(port_key)
 
+                # Single line: fresh per-line task (matches working R501 / NI MAX pattern)
+                if len(port_states) == 1:
+                    channel, value = next(iter(port_states.items()))
+                    self._drop_port_do_task(port_key)
+                    if self.task_manager.write_do_line(channel, bool(value)):
+                        line_states = list(self._port_line_state(port_key))
+                        idx = self._line_index(channel)
+                        if 0 <= idx < len(line_states):
+                            line_states[idx] = bool(value)
+                        self._apply_port_line_states(port_key, port_channels, line_states)
+                        any_ok = True
+                    else:
+                        self._last_failed_ports.append(port_num)
+                        log.error(
+                            "Write failed on %s — set port %d to Output in NI MAX",
+                            channel, port_num,
+                        )
+                    continue
+
+                # Multiple lines on one port: latched port-level task
+                line_states = list(self._port_line_state(port_key))
                 for channel, value in port_states.items():
                     idx = self._line_index(channel)
                     if 0 <= idx < len(line_states):
@@ -489,22 +619,31 @@ class DigitalIOController:
                     task_name = None
 
                 if not task_name:
-                    task_name = self.task_manager.create_do_task(
-                        self.device_name, port_channels,
+                    task_name = self.task_manager.create_do_port_task(
+                        self.device_name, port_key, port_channels,
                     )
                     if task_name is None:
-                        return False
+                        self._last_failed_ports.append(port_num)
+                        log.error(
+                            "Cannot write port %d — set direction to Output in NI MAX",
+                            port_num,
+                        )
+                        continue
                     self._port_do_tasks[port_key] = task_name
 
                 if not self.task_manager.write_digital(task_name, line_states):
-                    return False
+                    self._last_failed_ports.append(port_num)
+                    self._drop_port_do_task(port_key)
+                    log.error(
+                        "Write failed on port %d — set direction to Output in NI MAX",
+                        port_num,
+                    )
+                    continue
 
-                self._port_line_states[port_key] = line_states
-                with self._lock:
-                    for ch, val in zip(port_channels, line_states):
-                        self._output_states[ch] = bool(val)
+                any_ok = True
+                self._apply_port_line_states(port_key, port_channels, line_states)
 
-            return True
+            return any_ok
 
         except Exception as e:
             log.error("Failed to write port-shared digital output: %s", e)

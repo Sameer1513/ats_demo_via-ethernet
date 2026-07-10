@@ -155,6 +155,7 @@ class DeviceManager:
         self._initialized = False
         self._refresh_callbacks: List[callable] = []
         self._last_discovery_error: str = ""
+        self._ethernet_reach_cache: Dict[str, bool] = {}
 
         log.info("DeviceManager initialized")
 
@@ -198,6 +199,7 @@ class DeviceManager:
 
         discovered: Dict[str, DeviceInfo] = {}
         self._last_discovery_error = ""
+        self._ethernet_reach_cache.clear()
 
         try:
             daq_devices = list(self._nidaqmx_system.devices)
@@ -347,6 +349,36 @@ class DeviceManager:
                 return True
         return False
 
+    def _get_device_network_host(self, device: Any) -> str:
+        """IP or hostname for an Ethernet device or its parent chassis."""
+        host = self._get_ip_address(device)
+        if host:
+            return host
+        mod_match = re.match(r'^(.+)(Mod\d+)$', device.name, re.IGNORECASE)
+        if mod_match:
+            try:
+                parent = self._nidaqmx_system.devices[mod_match.group(1)]
+                return self._get_ip_address(parent)
+            except Exception:
+                pass
+        return ""
+
+    def _ethernet_host_reachable(self, host: str) -> bool:
+        """Fast TCP check before slow NI-DAQmx task probes."""
+        if not host:
+            return True
+        cached = self._ethernet_reach_cache.get(host)
+        if cached is not None:
+            return cached
+        reachable = False
+        try:
+            with socket.create_connection((host, 3580), timeout=1.5):
+                reachable = True
+        except Exception:
+            pass
+        self._ethernet_reach_cache[host] = reachable
+        return reachable
+
     def _probe_ethernet_live(self, device: Any) -> bool:
         """
         Verify an Ethernet device responds to NI-DAQmx (not just NI MAX metadata).
@@ -355,6 +387,10 @@ class DeviceManager:
         start/read proves the hardware is actually reachable.
         """
         name = getattr(device, 'name', 'unknown')
+        host = self._get_device_network_host(device)
+        if host and not self._ethernet_host_reachable(host):
+            log.debug("Ethernet host unreachable (%s) for '%s'", host, name)
+            return False
         try:
             if self._probe_ethernet_task(device):
                 return True

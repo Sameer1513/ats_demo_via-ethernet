@@ -70,6 +70,8 @@ _max_log_entries = 200
 
 app = Flask(__name__, template_folder=str(PACKAGE_DIR / 'templates'),
             static_folder=str(PACKAGE_DIR / 'static'))
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 
 def add_log(message: str, level: str = 'INFO') -> None:
@@ -516,12 +518,14 @@ def api_do_write():
             add_log(f"DO write: {channel} -> {state}")
             return jsonify({'state': state, 'success': True})
 
-        return jsonify({
-            'error': (
-                'Digital write failed. In NI MAX, set the port direction to '
-                'Output for lines you want to drive.'
-            ),
-        }), 500
+        failed = controller.get_last_failed_ports()
+        err = (
+            'Digital write failed. In NI MAX, set the port direction to '
+            'Output for lines you want to drive.'
+        )
+        if failed:
+            err += f' Failed port(s): {failed}.'
+        return jsonify({'error': err, 'failed_ports': failed}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -548,17 +552,26 @@ def api_do_write_module():
         controller = get_dio_controller(di, mi, module)
         if controller.write_digital_output(states):
             display = controller.get_all_output_states()
+            failed_ports = controller.get_last_failed_ports()
             add_log(f"DO write-all: {len(states)} channel(s) on {module.name}")
-            return jsonify({
+            payload = {
                 'states': {ch: bool(v) for ch, v in display.items()},
                 'success': True,
-            })
+                'failed_ports': failed_ports,
+            }
+            if failed_ports:
+                payload['warning'] = (
+                    f"Port(s) {failed_ports} not written — set to Output in NI MAX"
+                )
+            return jsonify(payload)
 
+        failed_ports = controller.get_last_failed_ports()
         return jsonify({
             'error': (
                 'Digital write-all failed. In NI MAX, set port direction to '
                 'Output for lines you want to drive.'
             ),
+            'failed_ports': failed_ports,
         }), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -584,6 +597,72 @@ def api_do_toggle():
             return jsonify({'state': state, 'success': True})
         
         return jsonify({'error': 'Toggle failed'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/do/test-line', methods=['POST'])
+def api_do_test_line():
+    """API: Test one digital line (True then False)."""
+    try:
+        data = request.json or {}
+        di, mi = data['device_idx'], data['module_idx']
+        port, line = int(data['port']), int(data['line'])
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        if not module.do_channels:
+            return jsonify({'error': 'No digital output channels'}), 400
+
+        controller = get_dio_controller(di, mi, module)
+        result = controller.test_one_line(port, line)
+        add_log(f"Line test P{port}.{line} on {module.name}: {'OK' if result.get('ok') else 'FAIL'}")
+        return jsonify({'success': True, **result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/do/test-ports', methods=['POST'])
+def api_do_test_ports():
+    """API: Test each digital line sequentially (batch; use test-line for live UI)."""
+    try:
+        data = request.json or {}
+        di, mi = data['device_idx'], data['module_idx']
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        if not module.do_channels:
+            return jsonify({'error': 'No digital output channels'}), 400
+
+        controller = get_dio_controller(di, mi, module)
+        line_results = controller.test_lines()
+        port_results = {}
+        by_port = {}
+        for key, info in line_results.items():
+            pn = info.get('port', -1)
+            if not info.get('found', True):
+                continue
+            by_port.setdefault(pn, []).append(bool(info.get('ok')))
+        for pn, oks in by_port.items():
+            port_results[pn] = {
+                'ok': all(oks) if oks else False,
+                'lines': len(oks),
+                'lines_ok': sum(1 for x in oks if x),
+                'message': 'OK' if all(oks) else 'One or more lines failed',
+            }
+        ok_ports = sum(1 for v in port_results.values() if v.get('ok'))
+        ok_lines = sum(1 for v in line_results.values() if v.get('ok'))
+        add_log(f"Line test on {module.name}: {ok_lines}/{len(line_results)} OK")
+        return jsonify({
+            'success': True,
+            'ports': port_results,
+            'lines': line_results,
+            'summary': f'{ok_lines}/{len(line_results)} lines OK, {ok_ports}/{len(port_results)} ports OK',
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

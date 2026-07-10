@@ -164,6 +164,103 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        .tabs-usb-view {
+            display: flex; gap: 4px; margin: 12px 0; flex-wrap: wrap;
+            border-bottom: 1px solid #0f3460; padding-bottom: 8px;
+        }
+        .tab-btn-usb {
+            padding: 8px 14px; background: #1a2747; border: 1px solid #0f3460;
+            color: #aaa; cursor: pointer; border-radius: 4px; font-size: 13px;
+        }
+        .tab-btn-usb:hover { background: #243352; color: #ddd; }
+        .tab-btn-usb.active { background: #0f3460; color: #00d4ff; border-color: #00d4ff; font-weight: bold; }
+        .usb-view-panel { display: none; }
+        .usb-view-panel.active { display: block; }
+
+        .mapping-group {
+            margin-bottom: 16px; background: #16213e; border-radius: 8px;
+            border: 1px solid #0f3460; overflow: hidden;
+        }
+        .mapping-group-title {
+            padding: 10px 14px; background: #0f3460; color: #00d4ff;
+            font-weight: bold; font-size: 14px;
+        }
+        .mapping-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .mapping-table th {
+            text-align: left; padding: 8px 10px; background: #0d1b2a;
+            color: #888; font-weight: 600; border-bottom: 1px solid #0f3460;
+        }
+        .mapping-table td {
+            padding: 8px 10px; border-bottom: 1px solid #0f3460; vertical-align: middle;
+        }
+        .mapping-table tr:last-child td { border-bottom: none; }
+        .mapping-table .ni-line { font-family: 'Courier New', monospace; color: #00d4ff; font-weight: bold; }
+
+        .port-select-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px; padding: 12px 0;
+        }
+        .port-select-item {
+            display: flex; align-items: center; gap: 8px;
+            background: #16213e; padding: 10px 12px; border-radius: 6px; border: 1px solid #0f3460;
+        }
+        .port-select-item input { width: auto; }
+
+        .diag-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+            gap: 8px; padding: 12px 0;
+        }
+        .diag-port {
+            text-align: center; padding: 12px 8px; border-radius: 6px;
+            font-family: 'Courier New', monospace; font-size: 13px; font-weight: bold;
+        }
+        .diag-port.ok { background: #1b5e20; color: #69f0ae; }
+        .diag-port.fail { background: #b71c1c; color: #ff8a80; }
+        .diag-port.pending { background: #37474f; color: #aaa; }
+
+        .diag-line-grid {
+            display: grid; grid-template-columns: 52px repeat(12, 1fr);
+            gap: 3px; font-size: 11px; margin-top: 12px; overflow-x: auto;
+        }
+        .diag-line-grid .hdr {
+            background: #0d1b2a; color: #888; padding: 6px 4px; text-align: center;
+            font-weight: bold; border-radius: 3px;
+        }
+        .diag-line-cell {
+            text-align: center; padding: 5px 2px; border-radius: 3px;
+            font-family: 'Courier New', monospace; font-size: 10px;
+        }
+        .diag-line-cell.ok { background: #1b5e20; color: #69f0ae; }
+        .diag-line-cell.fail { background: #b71c1c; color: #ff8a80; }
+        .diag-line-cell.pending { background: #37474f; color: #aaa; }
+        .diag-line-cell.testing { background: #e65100; color: #fff; animation: diag-pulse 0.8s infinite; }
+        .diag-line-cell.skip { background: #1a1a2e; color: #444; }
+        @keyframes diag-pulse { 50% { opacity: 0.6; } }
+
+        .port-lines-block {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+            margin-bottom: 10px; overflow: hidden;
+        }
+        .port-lines-header {
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+            background: #0f3460; cursor: pointer; user-select: none;
+        }
+        .port-lines-header input { width: auto; }
+        .port-lines-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+            padding: 10px 12px;
+        }
+        .line-select-item {
+            display: flex; align-items: center; gap: 6px; font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        .line-select-item input { width: auto; }
+
+        .port-section-title {
+            color: #00d4ff; font-size: 13px; font-weight: bold;
+            margin: 12px 0 6px; padding-left: 4px;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 8px; }
             .channel-controls { flex-direction: column; align-items: stretch; }
@@ -200,12 +297,31 @@
 
     <div class="toast" id="toast"></div>
 
+    <script src="/static/daq_usb_config.js"></script>
     <script>
         let currentTab = 'dashboard';
         let devicesLoaded = false;
         window._deviceStore = [];
+        window._diagRunning = {};
+        window._dioWriteLock = {};
 
-        document.addEventListener('DOMContentLoaded', () => loadDevices());
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDevices();
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.dio-write-btn');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (btn.disabled) return;
+                writeDigitalByChannel(
+                    parseInt(btn.dataset.di, 10),
+                    parseInt(btn.dataset.mi, 10),
+                    btn.dataset.channel,
+                    btn.dataset.dioId,
+                    btn.dataset.state === 'true'
+                );
+            });
+        });
 
         function showToast(msg, type='success') {
             const t = document.getElementById('toast');
@@ -256,8 +372,16 @@
         }
 
         async function loadDevices() {
-            const data = await apiCall('/api/devices?refresh=1', 'GET', null, 15000);
-            if (data) applyDeviceData(data);
+            const cached = await apiCall('/api/devices', 'GET', null, 5000);
+            if (cached) applyDeviceData(cached);
+            const fresh = await apiCall('/api/devices?refresh=1', 'GET', null, 45000);
+            if (fresh) {
+                applyDeviceData(fresh);
+            } else if (!cached) {
+                document.getElementById('deviceCount').textContent = 'Devices: 0';
+                document.getElementById('statusBar').textContent = 'Scan failed';
+                showToast('Request timed out', 'error');
+            }
         }
 
         async function refreshDevices(rescan = false) {
@@ -266,9 +390,15 @@
                 document.getElementById('statusBar').textContent = 'Scanning hardware…';
             }
             const url = rescan ? '/api/devices?refresh=1' : '/api/devices';
-            const data = await apiCall(url, 'GET', null, rescan ? 15000 : 8000);
+            const data = await apiCall(url, 'GET', null, rescan ? 45000 : 8000);
             if (!data) {
                 if (rescan) {
+                    const cached = await apiCall('/api/devices', 'GET', null, 5000);
+                    if (cached) {
+                        applyDeviceData(cached);
+                        showToast('Scan timed out — showing last cached devices', 'error');
+                        return;
+                    }
                     document.getElementById('deviceCount').textContent = 'Devices: 0';
                     document.getElementById('statusBar').textContent = 'Scan failed';
                 }
@@ -390,10 +520,356 @@
             return mod.ai_channels?.length || mod.ao_channels?.length || moduleHasDigital(mod);
         }
 
-        function renderDigitalModuleToolbar(di, mi, mod) {
+        function isUsbDigitalModule(device, mod) {
+            return (device.connection_type === 'USB') && moduleHasDigital(mod);
+        }
+
+        function dioRowId(di, mi, channel) {
+            return `${di}_${mi}_ch_${channel.replace(/\//g, '_')}`;
+        }
+
+        function dioStatusHtml(id) {
+            return `<span class="dio-value" data-dio-key="${id}">--</span>`;
+        }
+
+        function applyDigitalStateByChannel(di, mi, channel, value) {
+            setDigitalValueByKey(dioRowId(di, mi, channel), value);
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            if (!mod) return;
+            const ci = digitalChannelsForModule(mod).indexOf(channel);
+            if (ci >= 0) setDigitalValue(`dio_val_${di}_${mi}_dio_${ci}`, value);
+        }
+
+        function dioWriteButtons(di, mi, channel, id) {
+            const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+            return `
+                <button type="button" class="btn-success btn-sm dio-write-btn"
+                    data-di="${di}" data-mi="${mi}" data-channel="${esc(channel)}"
+                    data-dio-id="${esc(id)}" data-state="true">True</button>
+                <button type="button" class="btn-danger btn-sm dio-write-btn"
+                    data-di="${di}" data-mi="${mi}" data-channel="${esc(channel)}"
+                    data-dio-id="${esc(id)}" data-state="false">False</button>`;
+        }
+
+        function filteredChannelsByPort(mod, deviceName) {
+            return filterChannelsBySavedLines(digitalChannelsForModule(mod), deviceName);
+        }
+
+        function renderDigitalRow(di, mi, channel, label) {
+            const id = dioRowId(di, mi, channel);
+            return `
+            <div class="channel-row digital-row" data-channel="${channel}" data-dio-id="${id}">
+                <span class="channel-name">${label || shortDigitalName(channel)}</span>
+                <div class="digital-io-bar">
+                    <div class="dio-live">
+                        <span class="channel-type write">STATUS</span>
+                        ${dioStatusHtml(id)}
+                    </div>
+                    <div class="dio-section">${dioWriteButtons(di, mi, channel, id)}</div>
+                </div>
+            </div>`;
+        }
+
+        function renderNidaqByPort(di, mi, mod, deviceName) {
+            const { byPort, portNums } = filteredChannelsByPort(mod, deviceName);
+            let html = renderDigitalModuleToolbar(di, mi, mod, portNums);
+            if (!portNums.length) {
+                return '<p style="color:#888;padding:12px;">No lines selected. Use <strong>Select Ports</strong> tab.</p>';
+            }
+            for (const pn of portNums) {
+                html += `<div class="port-section-title">Port ${pn}</div>`;
+                for (const item of (byPort[pn] || [])) {
+                    const ch = item.channel || item;
+                    const ln = item.line != null ? item.line : parseNiLine(`P${pn}.0`)?.line;
+                    const label = `P${pn}.${item.line != null ? item.line : (ch.match(/line(\d+)/i)?.[1] || '?')}`;
+                    html += renderDigitalRow(di, mi, ch, label);
+                }
+            }
+            return html;
+        }
+
+        function mappingUsesOhm(kind) {
+            return kind === 'RTD' || kind === 'POT';
+        }
+
+        function renderMappingView(di, mi, mod, deviceName, kind) {
+            const groups = DAQ_USB_CONFIG[kind] || [];
+            const doCh = digitalChannelsForModule(mod);
+            const withOhm = mappingUsesOhm(kind);
+            let html = `<p style="color:#888;font-size:12px;margin-bottom:10px;">
+                NI line <strong>P{port}.{line}</strong> — close NI MAX Test Panel before writing.</p>`;
+            for (const grp of groups) {
+                const groupLabel = grp.channel != null
+                    ? `Channel ${grp.channel} — ${grp.title}`
+                    : grp.title;
+                html += `<div class="mapping-group">
+                    <div class="mapping-group-title">${groupLabel}</div>
+                    <table class="mapping-table">
+                        <thead><tr>`;
+                if (withOhm) {
+                    html += '<th>Ω</th>';
+                } else {
+                    html += '<th>Ch</th>';
+                }
+                html += `<th>Relay</th><th>Net</th><th>J23 Pin</th><th>NI Line</th><th>STATUS</th><th></th>
+                        </tr></thead><tbody>`;
+                for (const row of grp.rows) {
+                    const ch = resolveNiChannel(deviceName, doCh, row.niLine);
+                    const id = ch ? dioRowId(di, mi, ch) : `unmap_${row.relay}`;
+                    const parsed = parseNiLine(row.niLine);
+                    const niLabel = parsed ? `P${parsed.port}.${parsed.line}` : row.niLine;
+                    const firstCol = withOhm ? row.ohm : (row.ch != null ? row.ch : row.channel);
+                    html += `<tr>
+                        <td>${firstCol ?? '—'}</td><td>${row.relay}</td><td>${row.net}</td>
+                        <td>${row.pin}</td>
+                        <td class="ni-line" title="${ch || 'not found'}">${niLabel}</td>
+                        <td>${dioStatusHtml(id)}</td>
+                        <td>${ch ? dioWriteButtons(di, mi, ch, id) : '<span style="color:#888;">—</span>'}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table></div>';
+            }
+            return html;
+        }
+
+        function renderPortSelectView(di, mi, deviceName) {
+            const saved = new Set(getSavedLines(deviceName) || allLineKeys());
+            let blocks = '';
+            for (let p = 0; p < 12; p++) {
+                let linesHtml = '';
+                for (let l = 0; l < 8; l++) {
+                    const key = lineKey(p, l);
+                    const checked = saved.has(key) ? 'checked' : '';
+                    linesHtml += `<label class="line-select-item">
+                        <input type="checkbox" class="line-sel-cb" data-port="${p}" data-line="${l}"
+                            id="line_sel_${di}_${mi}_${p}_${l}" ${checked}>
+                        P${p}.${l}
+                    </label>`;
+                }
+                const portAllChecked = [0,1,2,3,4,5,6,7].every(l => saved.has(lineKey(p, l)));
+                blocks += `<div class="port-lines-block">
+                    <div class="port-lines-header" onclick="togglePortLinesBody(${di},${mi},${p})">
+                        <input type="checkbox" id="port_all_${di}_${mi}_${p}" ${portAllChecked ? 'checked' : ''}
+                            onclick="event.stopPropagation();togglePortAll(${di},${mi},${p}, this.checked)">
+                        <strong>Port ${p}</strong>
+                        <span style="color:#888;font-size:12px;">(lines 0–7)</span>
+                    </div>
+                    <div class="port-lines-grid" id="port_lines_body_${di}_${mi}_${p}">${linesHtml}</div>
+                </div>`;
+            }
+            return `
+                <p style="color:#aaa;font-size:13px;margin-bottom:8px;">
+                    Select ports and lines for the <strong>NI DAQ</strong> tab. Format: <strong>P{port}.{line}</strong>
+                </p>
+                ${blocks}
+                <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-primary" onclick="saveLineSelection(${di},${mi},'${deviceName}')">Save</button>
+                    <button class="btn-secondary btn-sm" onclick="selectAllLines(${di},${mi},true)">All</button>
+                    <button class="btn-secondary btn-sm" onclick="selectAllLines(${di},${mi},false)">None</button>
+                </div>`;
+        }
+
+        function togglePortLinesBody(di, mi, p) {
+            const el = document.getElementById(`port_lines_body_${di}_${mi}_${p}`);
+            if (el) el.style.display = el.style.display === 'none' ? 'grid' : 'none';
+        }
+
+        function togglePortAll(di, mi, p, on) {
+            for (let l = 0; l < 8; l++) {
+                const el = document.getElementById(`line_sel_${di}_${mi}_${p}_${l}`);
+                if (el) el.checked = on;
+            }
+        }
+
+        function selectAllLines(di, mi, on) {
+            for (let p = 0; p < 12; p++) {
+                togglePortAll(di, mi, p, on);
+                const portCb = document.getElementById(`port_all_${di}_${mi}_${p}`);
+                if (portCb) portCb.checked = on;
+            }
+        }
+
+        function saveLineSelection(di, mi, deviceName) {
+            const keys = [];
+            for (let p = 0; p < 12; p++) {
+                for (let l = 0; l < 8; l++) {
+                    const el = document.getElementById(`line_sel_${di}_${mi}_${p}_${l}`);
+                    if (el?.checked) keys.push(lineKey(p, l));
+                }
+            }
+            saveSelectedLines(deviceName, keys);
+            showToast(`Saved ${keys.length} line(s) for ${deviceName}`);
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const panel = document.getElementById(`usb_view_nidaq_${di}_${mi}`);
+            if (mod && panel) panel.innerHTML = renderNidaqByPort(di, mi, mod, deviceName);
+        }
+
+        function renderDiagnosticsView(di, mi) {
+            return `
+                <p style="color:#aaa;font-size:13px;margin-bottom:8px;">
+                    Tests each line one at a time: P0.0 → P0.1 → … → P11.7 (True then False per line).
+                    Orange = testing now. Red = failed (check NI MAX Output).
+                </p>
+                <button class="btn-primary" onclick="runPortDiagnostics(${di},${mi})">Run Line Test</button>
+                <div id="diag_grid_${di}_${mi}"></div>
+                <p id="diag_summary_${di}_${mi}" style="color:#888;font-size:13px;margin-top:8px;"></p>`;
+        }
+
+        function renderUsbModulePanel(di, mi, mod, device) {
+            const dn = device.name;
+            const v = (id, label, active) =>
+                `<button class="tab-btn-usb ${active}" onclick="switchUsbView(${di},${mi},'${id}', this)">${label}</button>`;
+            return `
+                <div class="tabs-usb-view" id="usb_tabs_${di}_${mi}">
+                    ${v('nidaq', 'NI DAQ', true)}
+                    ${v('di_dry', 'DI Dry', false)}
+                    ${v('di_wet', 'DI Wet', false)}
+                    ${v('ao_map', 'AO Map', false)}
+                    ${v('rtd', 'RTD', false)}
+                    ${v('pot', 'POT', false)}
+                    ${v('ports', 'Select Ports', false)}
+                    ${v('diag', 'Diagnostics', false)}
+                </div>
+                <div id="usb_view_nidaq_${di}_${mi}" class="usb-view-panel active channel-list">
+                    ${renderNidaqByPort(di, mi, mod, dn)}
+                </div>
+                <div id="usb_view_di_dry_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderMappingView(di, mi, mod, dn, 'DI_DRY')}
+                </div>
+                <div id="usb_view_di_wet_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderMappingView(di, mi, mod, dn, 'DI_WET')}
+                </div>
+                <div id="usb_view_ao_map_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderMappingView(di, mi, mod, dn, 'AO_MAP')}
+                </div>
+                <div id="usb_view_rtd_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderMappingView(di, mi, mod, dn, 'RTD')}
+                </div>
+                <div id="usb_view_pot_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderMappingView(di, mi, mod, dn, 'POT')}
+                </div>
+                <div id="usb_view_ports_${di}_${mi}" class="usb-view-panel">
+                    ${renderPortSelectView(di, mi, dn)}
+                </div>
+                <div id="usb_view_diag_${di}_${mi}" class="usb-view-panel">
+                    ${renderDiagnosticsView(di, mi)}
+                </div>`;
+        }
+
+        function switchUsbView(di, mi, viewId, btn) {
+            const root = document.getElementById(`chassis-${di}-mod-${mi}`);
+            if (!root) return;
+            root.querySelectorAll('.tab-btn-usb').forEach(b => b.classList.remove('active'));
+            root.querySelectorAll('.usb-view-panel').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const panel = document.getElementById(`usb_view_${viewId}_${di}_${mi}`);
+            if (panel) panel.classList.add('active');
+        }
+
+        function flushUi() {
+            return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+
+        async function runPortDiagnostics(di, mi) {
+            const runKey = `${di}_${mi}`;
+            if (window._diagRunning[runKey]) {
+                showToast('Diagnostics already running', 'error');
+                return;
+            }
+            window._diagRunning[runKey] = true;
+            const grid = document.getElementById(`diag_grid_${di}_${mi}`);
+            const summary = document.getElementById(`diag_summary_${di}_${mi}`);
+            if (!grid) {
+                window._diagRunning[runKey] = false;
+                return;
+            }
+            let html = '<div class="diag-line-grid"><div class="hdr">L/P</div>';
+            for (let p = 0; p < 12; p++) html += `<div class="hdr">P${p}</div>`;
+            for (let l = 0; l < 8; l++) {
+                html += `<div class="hdr">.${l}</div>`;
+                for (let p = 0; p < 12; p++) {
+                    html += `<div class="diag-line-cell pending" id="diag_${di}_${mi}_${p}_${l}">…</div>`;
+                }
+            }
+            html += '</div>';
+            grid.innerHTML = html;
+            if (summary) summary.textContent = 'Starting line-by-line test…';
+            let ok = 0;
+            let total = 0;
+            try {
+            for (let p = 0; p < 12; p++) {
+                for (let l = 0; l < 8; l++) {
+                    const el = document.getElementById(`diag_${di}_${mi}_${p}_${l}`);
+                    if (!el) continue;
+                    el.className = 'diag-line-cell testing';
+                    el.textContent = '▶';
+                    el.title = `Testing P${p}.${l}`;
+                    if (summary) summary.textContent = `Testing P${p}.${l} (${ok}/${total} OK so far)…`;
+                    await flushUi();
+                    const result = await apiCall('/api/do/test-line', 'POST', {
+                        device_idx: di, module_idx: mi, port: p, line: l
+                    }, 30000);
+                    if (!result) {
+                        el.className = 'diag-line-cell fail';
+                        el.textContent = 'ERR';
+                        continue;
+                    }
+                    if (!result.found) {
+                        el.className = 'diag-line-cell skip';
+                        el.textContent = '—';
+                        el.title = 'No channel';
+                        continue;
+                    }
+                    total++;
+                    if (result.ok) {
+                        el.className = 'diag-line-cell ok';
+                        el.textContent = 'OK';
+                        el.title = result.channel || '';
+                        ok++;
+                    } else {
+                        el.className = 'diag-line-cell fail';
+                        el.textContent = 'FAIL';
+                        el.title = result.message || '';
+                    }
+                    await flushUi();
+                }
+            }
+            } finally {
+                window._diagRunning[runKey] = false;
+            }
+            const msg = `${ok}/${total} lines OK`;
+            if (summary) summary.textContent = msg;
+            showToast('Line test complete: ' + msg);
+        }
+
+        async function writeDigitalByChannel(di, mi, channel, id, state) {
+            const lockKey = `${di}_${mi}_${channel}`;
+            if (window._dioWriteLock[lockKey]) return;
+            window._dioWriteLock[lockKey] = true;
+            const modRoot = document.getElementById(`chassis-${di}-mod-${mi}`);
+            modRoot?.querySelectorAll('.dio-write-btn').forEach(b => { b.disabled = true; });
+            try {
+                const result = await apiCall('/api/do/write', 'POST', {
+                    device_idx: di, module_idx: mi, channel, state
+                }, 30000);
+                if (result) {
+                    setDigitalValueByKey(id, result.state);
+                    applyDigitalStateByChannel(di, mi, channel, result.state);
+                    showToast(`${shortDigitalName(channel)}: ${result.state ? 'True' : 'False'}`);
+                }
+            } finally {
+                delete window._dioWriteLock[lockKey];
+                modRoot?.querySelectorAll('.dio-write-btn').forEach(b => { b.disabled = false; });
+            }
+        }
+
+        function renderDigitalModuleToolbar(di, mi, mod, portFilter) {
             if (!moduleHasDigital(mod)) return '';
+            const filterNote = portFilter && portFilter.length < 12
+                ? ` <span style="color:#888;font-weight:normal;">(ports ${portFilter.join(', ')})</span>` : '';
             return `
             <div class="dio-module-toolbar">
+                <span style="color:#00d4ff;font-size:13px;">Digital I/O${filterNote}</span>
                 <button class="btn-success btn-sm" onclick="writeDigitalModule(${di},${mi},true)">All True</button>
                 <button class="btn-danger btn-sm" onclick="writeDigitalModule(${di},${mi},false)">All False</button>
             </div>`;
@@ -512,7 +988,9 @@
                     modulePanelsHtml += `
                         <div id="${modId}" class="tab-panel-module ${active}">
                             <div class="module-meta">${mod.name} · Slot ${mod.slot_number} · ${mod.product_type}</div>
-                            <div class="channel-list">${renderModuleChannels(di, mi, mod)}</div>
+                            ${isUsbDigitalModule(device, mod)
+                                ? renderUsbModulePanel(di, mi, mod, device)
+                                : `<div class="channel-list">${renderModuleChannels(di, mi, mod)}</div>`}
                         </div>`;
                 });
 
@@ -630,32 +1108,50 @@
             el.className = `dio-value ${cls}`.trim();
         }
 
+        function setDigitalValueByKey(key, val) {
+            const { text, cls } = formatDigitalValue(val);
+            document.querySelectorAll(`[data-dio-key="${key}"]`).forEach(el => {
+                el.textContent = text;
+                el.className = `dio-value ${cls}`.trim();
+            });
+        }
+
         function applyModuleDigitalStates(di, mi, states) {
             const mod = window._deviceStore[di]?.modules?.[mi];
             if (!mod || !states) return;
-            const channels = digitalChannelsForModule(mod);
             for (const [channel, value] of Object.entries(states)) {
-                const ci = channels.indexOf(channel);
-                if (ci < 0) continue;
-                const id = `${di}_${mi}_dio_${ci}`;
-                setDigitalValue(`dio_val_${id}`, value);
+                applyDigitalStateByChannel(di, mi, channel, value);
             }
         }
 
 
         async function writeDigitalModule(di, mi, state) {
-            const mod = window._deviceStore[di]?.modules?.[mi];
-            const count = mod?.do_channels?.length || 0;
+            const device = window._deviceStore[di];
+            const mod = device?.modules?.[mi];
+            let channels = digitalChannelsForModule(mod);
+            if (device && isUsbDigitalModule(device, mod)) {
+                const filtered = filteredChannelsByPort(mod, device.name);
+                if (filtered.channels.length) channels = filtered.channels;
+            }
+            const count = channels.length;
             if (!count) {
                 showToast('No writable channels', 'error');
                 return;
             }
             const result = await apiCall('/api/do/write-module', 'POST', {
-                device_idx: di, module_idx: mi, uniform_state: state
+                device_idx: di, module_idx: mi,
+                states: Object.fromEntries(channels.map(ch => [ch, state]))
             }, 60000);
             if (result?.states) {
                 applyModuleDigitalStates(di, mi, result.states);
-                showToast(`All ${count} channel(s) → ${state ? 'True' : 'False'}`);
+                if (result.failed_ports?.length) {
+                    showToast(
+                        `Ports ${result.failed_ports.join(', ')} failed — set to Output in NI MAX`,
+                        'error'
+                    );
+                } else {
+                    showToast(`All ${count} channel(s) → ${state ? 'True' : 'False'}`);
+                }
             }
         }
 
