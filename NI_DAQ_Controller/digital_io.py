@@ -30,7 +30,7 @@ from typing import List, Optional, Tuple, Dict, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from logger import get_logger
-from task_manager import TaskManager, channel_on_port
+from task_manager import TaskManager, TaskState, channel_on_port
 from device_manager import ModuleInfo
 
 log = get_logger(__name__)
@@ -400,6 +400,13 @@ class DigitalIOController:
         if not channels:
             return None
 
+        # Single-line reads use a fresh task (avoids "task is running" on repeat reads).
+        if len(channels) == 1:
+            value = self.task_manager.read_di_line(channels[0])
+            if value is None:
+                return None
+            return {channels[0]: value}
+
         # Create task if not exists
         if self._di_task is None:
             task_name = self.task_manager.create_di_task(
@@ -411,8 +418,9 @@ class DigitalIOController:
             self._di_task = task_name
 
         try:
-            # Start task
-            self.task_manager.start_task(self._di_task)
+            task_info = self.task_manager.get_task_info(self._di_task)
+            if not task_info or task_info.state != TaskState.RUNNING:
+                self.task_manager.start_task(self._di_task)
 
             # Read values
             values = self.task_manager.read_digital(self._di_task)
@@ -673,6 +681,21 @@ class DigitalIOController:
             Current state if available, None otherwise
         """
         return self._output_states.get(channel)
+
+    def read_output_line(self, channel: str) -> Optional[bool]:
+        """
+        Read digital output / relay state from hardware.
+
+        Args:
+            channel: DO channel name (e.g. relay line on NI 948x)
+
+        Returns:
+            True = relay closed/on, False = open/off, None on failure
+        """
+        value = self.task_manager.read_do_line(channel)
+        if value is not None:
+            self._output_states[channel] = value
+        return value
 
     def get_all_output_states(self) -> Dict[str, bool]:
         """

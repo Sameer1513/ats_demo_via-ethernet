@@ -410,7 +410,19 @@ class DeviceManager:
         but not physically connected).
         """
         if device_info.connection_type == ConnectionType.ETHERNET:
-            return self._probe_ethernet_live(device)
+            if self._probe_ethernet_live(device):
+                return True
+            mod_match = re.match(r'^(.+)(Mod\d+)$', device.name, re.IGNORECASE)
+            if mod_match and self._total_channel_count(device_info) > 0:
+                host = self._get_device_network_host(device)
+                if host and self._ethernet_host_reachable(host):
+                    log.debug(
+                        "Ethernet module '%s' reachable via host %s",
+                        device.name,
+                        host,
+                    )
+                    return True
+            return False
 
         return self._total_channel_count(device_info) > 0
 
@@ -581,7 +593,8 @@ class DeviceManager:
 
         chassis.modules = [
             m for m in chassis.modules
-            if m.supported_operations or m.name != chassis_name
+            if m.slot_number != slot_num
+            and (m.supported_operations or m.name != chassis_name)
         ]
         chassis.modules.append(module)
         chassis.modules.sort(key=lambda m: m.slot_number)

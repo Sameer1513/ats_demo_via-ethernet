@@ -372,15 +372,12 @@
         }
 
         async function loadDevices() {
-            const cached = await apiCall('/api/devices', 'GET', null, 5000);
-            if (cached) applyDeviceData(cached);
-            const fresh = await apiCall('/api/devices?refresh=1', 'GET', null, 45000);
-            if (fresh) {
-                applyDeviceData(fresh);
-            } else if (!cached) {
+            const data = await apiCall('/api/devices', 'GET', null, 8000);
+            if (data) {
+                applyDeviceData(data);
+            } else {
                 document.getElementById('deviceCount').textContent = 'Devices: 0';
-                document.getElementById('statusBar').textContent = 'Scan failed';
-                showToast('Request timed out', 'error');
+                document.getElementById('statusBar').textContent = 'No devices — click Refresh to scan';
             }
         }
 
@@ -468,9 +465,8 @@
             container.innerHTML = `
                 <div style="padding:16px 20px;background:#16213e;border-radius:8px;border-left:4px solid #4caf50;">
                     <p style="font-size:14px;color:#ccc;">
-                        <strong style="color:#69f0ae;">${devices.length}</strong> device(s) connected
-                        ${summary ? `(${summary})` : ''}.
-                        Use <strong>USB</strong> / <strong>Ethernet</strong> tabs → per-line <strong>True/False</strong>, or <strong>All True</strong> / <strong>All False</strong>.
+                        <strong style="color:#69f0ae;">${devices.length}</strong> device(s) — USB and Ethernet shown together.
+                        Click <strong>Refresh</strong> after plugging in or removing hardware.
                     </p>
                 </div>`;
         }
@@ -490,8 +486,10 @@
             return `Device ${deviceIdx + 1}`;
         }
 
-        function moduleTabLabel(displayIdx) {
-            return `NI DAQ ${displayIdx + 1}`;
+        function moduleTabLabel(displayIdx, mod) {
+            const slot = mod?.slot_number != null ? `S${mod.slot_number}` : '';
+            const short = (mod?.product_type || '').replace(/\s*\(DSUB\)/i, '').trim();
+            return slot ? `${slot} · ${short || 'Module'}` : `NI DAQ ${displayIdx + 1}`;
         }
 
         function shortDigitalName(ch) {
@@ -509,6 +507,10 @@
         }
 
         function moduleHasDigital(mod) {
+            return (mod.di_channels?.length || 0) > 0 || (mod.do_channels?.length || 0) > 0;
+        }
+
+        function moduleHasDigitalOutput(mod) {
             return (mod.do_channels?.length || 0) > 0;
         }
 
@@ -517,11 +519,12 @@
         }
 
         function moduleHasChannels(mod) {
-            return mod.ai_channels?.length || mod.ao_channels?.length || moduleHasDigital(mod);
+            return mod.ai_channels?.length || mod.ao_channels?.length
+                || mod.di_channels?.length || mod.do_channels?.length;
         }
 
         function isUsbDigitalModule(device, mod) {
-            return (device.connection_type === 'USB') && moduleHasDigital(mod);
+            return (device.connection_type === 'USB') && moduleHasDigitalOutput(mod);
         }
 
         function dioRowId(di, mi, channel) {
@@ -570,9 +573,9 @@
             </div>`;
         }
 
-        function renderNidaqByPort(di, mi, mod, deviceName) {
+        function renderNidaqByPort(di, mi, mod, deviceName, device) {
             const { byPort, portNums } = filteredChannelsByPort(mod, deviceName);
-            let html = renderDigitalModuleToolbar(di, mi, mod, portNums);
+            let html = renderDigitalModuleToolbar(di, mi, mod, portNums, device);
             if (!portNums.length) {
                 return '<p style="color:#888;padding:12px;">No lines selected. Use <strong>Select Ports</strong> tab.</p>';
             }
@@ -701,7 +704,10 @@
             showToast(`Saved ${keys.length} line(s) for ${deviceName}`);
             const mod = window._deviceStore[di]?.modules?.[mi];
             const panel = document.getElementById(`usb_view_nidaq_${di}_${mi}`);
-            if (mod && panel) panel.innerHTML = renderNidaqByPort(di, mi, mod, deviceName);
+            if (mod && panel) {
+                const device = window._deviceStore[di];
+                panel.innerHTML = renderNidaqByPort(di, mi, mod, deviceName, device);
+            }
         }
 
         function renderDiagnosticsView(di, mi) {
@@ -731,7 +737,7 @@
                     ${v('diag', 'Diagnostics', false)}
                 </div>
                 <div id="usb_view_nidaq_${di}_${mi}" class="usb-view-panel active channel-list">
-                    ${renderNidaqByPort(di, mi, mod, dn)}
+                    ${renderNidaqByPort(di, mi, mod, dn, device)}
                 </div>
                 <div id="usb_view_di_dry_${di}_${mi}" class="usb-view-panel channel-list">
                     ${renderMappingView(di, mi, mod, dn, 'DI_DRY')}
@@ -863,29 +869,43 @@
             }
         }
 
-        function renderDigitalModuleToolbar(di, mi, mod, portFilter) {
+        function supportsDoHardwareRead(device, mod) {
+            return device?.connection_type !== 'USB' && (mod?.do_channels?.length || 0) > 0;
+        }
+
+        function renderDigitalModuleToolbar(di, mi, mod, portFilter, device) {
             if (!moduleHasDigital(mod)) return '';
             const filterNote = portFilter && portFilter.length < 12
                 ? ` <span style="color:#888;font-weight:normal;">(ports ${portFilter.join(', ')})</span>` : '';
+            const readAllBtn = supportsDoHardwareRead(device, mod)
+                ? `<button class="btn-secondary btn-sm" onclick="readDigitalModule(${di},${mi})">Read All</button>`
+                : '';
             return `
             <div class="dio-module-toolbar">
                 <span style="color:#00d4ff;font-size:13px;">Digital I/O${filterNote}</span>
+                ${readAllBtn}
                 <button class="btn-success btn-sm" onclick="writeDigitalModule(${di},${mi},true)">All True</button>
                 <button class="btn-danger btn-sm" onclick="writeDigitalModule(${di},${mi},false)">All False</button>
             </div>`;
         }
 
-        function renderDigitalChannelRow(di, mi, ci, channel, mod) {
+        function renderDigitalChannelRow(di, mi, ci, channel, mod, device) {
             const id = `${di}_${mi}_dio_${ci}`;
+            const hwRead = supportsDoHardwareRead(device, mod);
+            const statusLabel = hwRead ? 'RELAY' : 'STATUS';
+            const readBtn = hwRead
+                ? `<button class="btn-secondary btn-sm" onclick="readDOChannel(${di},${mi},'${id}')">Read</button>`
+                : '';
             return `
             <div class="channel-row digital-row" data-channel="${channel}" data-dio-id="${id}">
                 <span class="channel-name">${shortDigitalName(channel)}</span>
                 <div class="digital-io-bar">
                     <div class="dio-live">
-                        <span class="channel-type write">STATUS</span>
+                        <span class="channel-type ${hwRead ? 'read' : 'write'}">${statusLabel}</span>
                         <span class="dio-value" id="dio_val_${id}">--</span>
                     </div>
                     <div class="dio-section">
+                        ${readBtn}
                         <button class="btn-success btn-sm" onclick="writeDigitalChannel(${di},${mi},'${id}',true)">True</button>
                         <button class="btn-danger btn-sm" onclick="writeDigitalChannel(${di},${mi},'${id}',false)">False</button>
                     </div>
@@ -931,8 +951,26 @@
             </div>`;
         }
 
-        function renderModuleChannels(di, mi, mod) {
-            let html = renderDigitalModuleToolbar(di, mi, mod);
+        function renderDigitalInputRow(di, mi, ci, channel) {
+            const id = `${di}_${mi}_di_${ci}`;
+            return `
+            <div class="channel-row digital-row" data-channel="${channel}" data-dio-id="${id}">
+                <span class="channel-name">${shortDigitalName(channel)}</span>
+                <div class="digital-io-bar">
+                    <div class="dio-live">
+                        <span class="channel-type read">DI READ</span>
+                        <span class="dio-value" id="dio_val_${id}">--</span>
+                    </div>
+                    <div class="dio-section">
+                        <button class="btn-success btn-sm" onclick="readDIChannel(${di},${mi},'${id}')">Read</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function renderModuleChannels(di, mi, mod, device) {
+            let html = moduleHasDigitalOutput(mod)
+                ? renderDigitalModuleToolbar(di, mi, mod, null, device) : '';
             (mod.ai_channels || []).forEach((ch, ci) => {
                 const id = `${di}_${mi}_ai_${ci}`;
                 html += `
@@ -948,8 +986,11 @@
             (mod.ao_channels || []).forEach((ch, ci) => {
                 html += renderAoChannelRow(di, mi, ci, ch, mod);
             });
+            (mod.di_channels || []).forEach((ch, ci) => {
+                html += renderDigitalInputRow(di, mi, ci, ch);
+            });
             digitalChannelsForModule(mod).forEach((ch, ci) => {
-                html += renderDigitalChannelRow(di, mi, ci, ch, mod);
+                html += renderDigitalChannelRow(di, mi, ci, ch, mod, device);
             });
             return html || '<p style="color:#888;padding:12px;">No channels on this module.</p>';
         }
@@ -962,9 +1003,8 @@
 
             devices.forEach((device, di) => {
                 const chassisId = `chassis-${di}`;
-                const modules = (device.modules || [])
-                    .map((mod, origIdx) => ({ mod, origIdx }))
-                    .filter(({ mod }) => moduleHasChannels(mod));
+                const allModules = device.modules || [];
+                const modules = allModules.map((mod, origIdx) => ({ mod, origIdx }));
 
                 const conn = device.connection_type || 'Unknown';
                 const btn = document.createElement('button');
@@ -979,7 +1019,7 @@
                 modules.forEach(({ mod, origIdx: mi }, displayIdx) => {
                     const modId = `chassis-${di}-mod-${mi}`;
                     const active = displayIdx === 0 ? 'active' : '';
-                    const modLabel = moduleTabLabel(displayIdx);
+                    const modLabel = moduleTabLabel(displayIdx, mod);
                     moduleTabsHtml += `
                         <button class="tab-btn-module ${active}" onclick="switchModuleTab(${di},${mi}, this)">
                             ${modLabel}
@@ -990,7 +1030,7 @@
                             <div class="module-meta">${mod.name} · Slot ${mod.slot_number} · ${mod.product_type}</div>
                             ${isUsbDigitalModule(device, mod)
                                 ? renderUsbModulePanel(di, mi, mod, device)
-                                : `<div class="channel-list">${renderModuleChannels(di, mi, mod)}</div>`}
+                                : `<div class="channel-list">${renderModuleChannels(di, mi, mod, device)}</div>`}
                         </div>`;
                 });
 
@@ -1008,7 +1048,7 @@
                         <div class="device-details" style="margin-top:8px;">
                             ${device.serial_number ? `<span>S/N: ${device.serial_number}</span>` : ''}
                             ${device.ip_address ? `<span>IP: ${device.ip_address}</span>` : ''}
-                            <span>Modules: ${modules.length}</span>
+                            <span>Modules: ${allModules.length}</span>
                         </div>
                     </div>
                     ${modules.length ? `
@@ -1059,6 +1099,21 @@
                 text += ` @ ${freq} Hz ${wf}`;
             }
             return text;
+        }
+
+        async function readDIChannel(di, mi, id) {
+            const channel = channelFromId(id);
+            if (!channel) {
+                showToast('Channel not found', 'error');
+                return;
+            }
+            const result = await apiCall('/api/di/read', 'POST', {
+                device_idx: di, module_idx: mi, channel
+            });
+            if (result) {
+                setDigitalValue(`dio_val_${id}`, result.state);
+                showToast(`${shortDigitalName(channel)}: ${result.state ? 'True' : 'False'}`);
+            }
         }
 
         async function readAIChannel(di, mi, id) {
@@ -1153,6 +1208,42 @@
                     showToast(`All ${count} channel(s) → ${state ? 'True' : 'False'}`);
                 }
             }
+        }
+
+        async function readDOChannel(di, mi, id, quiet = false) {
+            const channel = channelFromId(id);
+            if (!channel) {
+                if (!quiet) showToast('Channel not found', 'error');
+                return null;
+            }
+            const result = await apiCall('/api/do/read', 'POST', {
+                device_idx: di, module_idx: mi, channel
+            });
+            if (result) {
+                setDigitalValue(`dio_val_${id}`, result.state);
+                applyDigitalStateByChannel(di, mi, channel, result.state);
+                if (!quiet) {
+                    showToast(`${shortDigitalName(channel)}: ${result.state ? 'True (closed)' : 'False (open)'}`);
+                }
+                return result.state;
+            }
+            return null;
+        }
+
+        async function readDigitalModule(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const channels = mod?.do_channels || [];
+            if (!channels.length) {
+                showToast('No relay/output lines on this module', 'error');
+                return;
+            }
+            let ok = 0;
+            for (let ci = 0; ci < channels.length; ci++) {
+                const id = `${di}_${mi}_dio_${ci}`;
+                const state = await readDOChannel(di, mi, id, true);
+                if (state !== null) ok++;
+            }
+            showToast(`Read ${ok}/${channels.length} relay line(s) from hardware`);
         }
 
         async function writeDigitalChannel(di, mi, id, state) {

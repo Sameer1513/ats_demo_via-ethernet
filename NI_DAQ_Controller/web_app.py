@@ -530,6 +530,53 @@ def api_do_write():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/do/read', methods=['POST'])
+def api_do_read():
+    """API: Read one digital output / relay line from hardware."""
+    try:
+        data = request.json
+        di, mi = data['device_idx'], data['module_idx']
+        channel = data['channel']
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        controller = get_dio_controller(di, mi, module)
+        state = controller.read_output_line(channel)
+        if state is None:
+            return jsonify({'error': 'Digital output read failed'}), 500
+
+        add_log(f"DO read: {channel} -> {state}")
+        return jsonify({'state': state, 'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/di/read', methods=['POST'])
+def api_di_read():
+    """API: Read one digital input line."""
+    try:
+        data = request.json
+        di, mi = data['device_idx'], data['module_idx']
+        channel = data['channel']
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        controller = get_dio_controller(di, mi, module)
+        values = controller.read_digital_input([channel])
+        if not values or channel not in values:
+            return jsonify({'error': 'Digital read failed'}), 500
+
+        state = bool(values[channel])
+        add_log(f"DI read: {channel} -> {state}")
+        return jsonify({'state': state, 'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/do/write-module', methods=['POST'])
 def api_do_write_module():
     """API: Write all digital lines on one module to the same state."""

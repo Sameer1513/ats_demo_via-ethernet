@@ -664,6 +664,48 @@ class TaskManager:
             log.error("Failed to write DO line %s = %s: %s", channel, value, e)
             return False
 
+    def read_di_line(self, channel: str) -> Optional[bool]:
+        """
+        Read one NI digital input line.
+
+        Uses a short-lived task per read (same pattern as write_do_line).
+        """
+        if not self._check_nidaqmx():
+            return None
+
+        try:
+            import nidaqmx
+            with nidaqmx.Task() as task:
+                task.di_channels.add_di_chan(channel)
+                data = task.read(auto_start=True)
+            if isinstance(data, list):
+                return bool(data[0]) if data else None
+            return bool(data)
+        except Exception as e:
+            log.error("Failed to read DI line %s: %s", channel, e)
+            return None
+
+    def read_do_line(self, channel: str) -> Optional[bool]:
+        """
+        Read one NI digital output line (relay state on 948x modules).
+
+        NI-DAQmx allows reading DO channels to verify relay open/closed state.
+        """
+        if not self._check_nidaqmx():
+            return None
+
+        try:
+            import nidaqmx
+            with nidaqmx.Task() as task:
+                task.do_channels.add_do_chan(channel)
+                data = task.read(auto_start=True)
+            if isinstance(data, list):
+                return bool(data[0]) if data else None
+            return bool(data)
+        except Exception as e:
+            log.error("Failed to read DO line %s: %s", channel, e)
+            return None
+
     def start_task(self, task_name: str) -> bool:
         """
         Start a DAQ task.
@@ -683,6 +725,10 @@ class TaskManager:
             if task is None:
                 log.error("Task '%s' not found", task_name)
                 return False
+
+            task_info = self._tasks.get(task_name)
+            if task_info and task_info.state == TaskState.RUNNING:
+                return True
 
         try:
             task.start()
