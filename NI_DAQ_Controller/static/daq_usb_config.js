@@ -42,8 +42,8 @@ window.DAQ_USB_CONFIG = {
         { channel: 6, title: 'Ry6+ / Ry6-', rows: [
             { ohm: '200', relay: 'K127', net: 'RTD_26', pin: '47', niLine: 'P6.0' },
             { ohm: '150', relay: 'K128', net: 'RTD_27', pin: '—', niLine: 'P2.7' },
-            { ohm: '120', relay: 'K129', net: 'RTD_28', pin: '—', niLine: 'P5.7' },
-            { ohm: '100', relay: 'K130', net: 'RTD_29', pin: '—', niLine: 'P2.6' },
+            { ohm: '120', relay: 'K129', net: 'RTD_28', pin: '—', niLine: 'P2.6' },
+            { ohm: '100', relay: 'K130', net: 'RTD_29', pin: '—', niLine: 'P5.7' },
             { ohm: '68', relay: 'K131', net: 'RTD_30', pin: '—', niLine: 'P5.6' },
         ]},
     ],
@@ -240,4 +240,101 @@ window.filterChannelsBySavedLines = function filterChannelsBySavedLines(channels
         }
     }
     return { byPort, portNums, channels: out, active };
+};
+
+window.diLinesStorageKey = function diLinesStorageKey(deviceName, moduleName) {
+    return `daq_selected_di_${deviceName}_${moduleName}`;
+};
+
+window.getSavedDiLines = function getSavedDiLines(deviceName, moduleName) {
+    try {
+        const raw = localStorage.getItem(diLinesStorageKey(deviceName, moduleName));
+        if (!raw) return null;
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return null;
+        return arr.map(String);
+    } catch {
+        return null;
+    }
+};
+
+window.saveSelectedDiLines = function saveSelectedDiLines(deviceName, moduleName, lineKeys) {
+    localStorage.setItem(
+        diLinesStorageKey(deviceName, moduleName),
+        JSON.stringify(lineKeys.sort())
+    );
+};
+
+window.filterDiChannelsBySavedLines = function filterDiChannelsBySavedLines(
+    diChannels, deviceName, moduleName
+) {
+    const allByPort = groupChannelsByPort(diChannels || []);
+    const portNums = Object.keys(allByPort).map(Number).sort((a, b) => a - b);
+    const allKeys = [];
+    for (const pn of portNums) {
+        for (const item of allByPort[pn]) allKeys.push(item.key);
+    }
+    const saved = getSavedDiLines(deviceName, moduleName);
+    const active = new Set(saved && saved.length ? saved : allKeys);
+    const byPort = {};
+    const out = [];
+    const filteredPortNums = [];
+    for (const pn of portNums) {
+        const portLines = (allByPort[pn] || []).filter(item => active.has(item.key));
+        if (portLines.length) {
+            byPort[pn] = portLines;
+            filteredPortNums.push(pn);
+            out.push(...portLines.map(item => item.channel));
+        }
+    }
+    return { byPort, portNums: filteredPortNums, channels: out, active };
+};
+
+/** Sort DI channels and group into relay pairs: global line0+1, 2+3, … */
+window.buildDiRelayPairs = function buildDiRelayPairs(diChannels) {
+    const items = (diChannels || []).map((ch, idx) => {
+        const m = String(ch).match(/port(\d+)\/line(\d+)/i);
+        return {
+            channel: ch,
+            channelIndex: idx,
+            port: m ? parseInt(m[1], 10) : 0,
+            line: m ? parseInt(m[2], 10) : idx,
+        };
+    }).sort((a, b) => (a.port !== b.port ? a.port - b.port : a.line - b.line));
+
+    items.forEach((item, globalLine) => {
+        item.globalLine = globalLine;
+    });
+
+    const pairs = [];
+    for (let i = 0; i < items.length; i += 2) {
+        pairs.push({
+            relayNum: Math.floor(i / 2) + 1,
+            line0: items[i],
+            line1: items[i + 1] || null,
+        });
+    }
+    return pairs;
+};
+
+window.relayPairLineKeys = function relayPairLineKeys(pair) {
+    const keys = [];
+    if (pair?.line0) keys.push(lineKey(pair.line0.port, pair.line0.line));
+    if (pair?.line1) keys.push(lineKey(pair.line1.port, pair.line1.line));
+    return keys;
+};
+
+window.isRelayPairInSet = function isRelayPairInSet(keySet, pair) {
+    const keys = relayPairLineKeys(pair);
+    return keys.length > 0 && keys.every(k => keySet.has(k));
+};
+
+window.filterDiRelayPairsBySaved = function filterDiRelayPairsBySaved(
+    diChannels, deviceName, moduleName
+) {
+    const pairs = buildDiRelayPairs(diChannels);
+    const allKeys = pairs.flatMap(relayPairLineKeys);
+    const saved = getSavedDiLines(deviceName, moduleName);
+    const active = new Set(saved && saved.length ? saved : allKeys);
+    return pairs.filter(p => isRelayPairInSet(active, p));
 };

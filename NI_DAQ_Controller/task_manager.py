@@ -22,6 +22,7 @@ Typical usage:
 
 import time
 import threading
+import re
 import numpy as np
 from typing import List, Optional, Tuple, Dict, Any, Callable, Union
 from enum import Enum
@@ -29,6 +30,21 @@ from dataclasses import dataclass, field
 from logger import get_logger
 
 log = get_logger(__name__)
+
+
+def normalize_physical_channel(channel: Any) -> str:
+    """Strip NI-DAQmx PhysicalChannel repr to a usable channel name."""
+    if channel is None:
+        return ''
+    name = getattr(channel, 'name', None)
+    if name:
+        return str(name)
+    text = str(channel).strip()
+    if text.startswith('PhysicalChannel('):
+        match = re.search(r'name=([^)]+)\)', text)
+        if match:
+            return match.group(1).strip()
+    return text
 
 
 def channel_on_port(channel: str, port_key: str) -> bool:
@@ -123,6 +139,9 @@ class TaskManager:
         self._initialized = False
 
         log.info("TaskManager initialized")
+
+    def _normalize_physical_channel(self, channel: Any) -> str:
+        return normalize_physical_channel(channel)
 
     def _check_nidaqmx(self) -> bool:
         """
@@ -653,6 +672,10 @@ class TaskManager:
         if not self._check_nidaqmx():
             return False
 
+        channel = self._normalize_physical_channel(channel)
+        if not channel:
+            return False
+
         try:
             import nidaqmx
             with nidaqmx.Task() as task:
@@ -673,11 +696,16 @@ class TaskManager:
         if not self._check_nidaqmx():
             return None
 
+        channel = self._normalize_physical_channel(channel)
+        if not channel:
+            return None
+
         try:
             import nidaqmx
             with nidaqmx.Task() as task:
                 task.di_channels.add_di_chan(channel)
-                data = task.read(auto_start=True)
+                task.start()
+                data = task.read()
             if isinstance(data, list):
                 return bool(data[0]) if data else None
             return bool(data)
@@ -694,11 +722,16 @@ class TaskManager:
         if not self._check_nidaqmx():
             return None
 
+        channel = self._normalize_physical_channel(channel)
+        if not channel:
+            return None
+
         try:
             import nidaqmx
             with nidaqmx.Task() as task:
                 task.do_channels.add_do_chan(channel)
-                data = task.read(auto_start=True)
+                task.start()
+                data = task.read()
             if isinstance(data, list):
                 return bool(data[0]) if data else None
             return bool(data)

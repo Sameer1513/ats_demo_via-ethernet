@@ -256,6 +256,34 @@
         }
         .line-select-item input { width: auto; }
 
+        .relay-pair-row {
+            margin-bottom: 10px; padding: 12px 16px; background: #16213e;
+            border-radius: 8px; border-left: 4px solid #00d4ff;
+        }
+        .relay-pair-head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 8px; gap: 12px;
+        }
+        .relay-pair-title {
+            font-weight: bold; color: #00d4ff; font-size: 14px;
+        }
+        .relay-pair-lines { display: flex; flex-direction: column; gap: 6px; }
+        .relay-line-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 10px; background: #0d1b2a; border-radius: 4px;
+            font-family: 'Courier New', monospace; font-size: 13px;
+        }
+        .relay-line-label { color: #aaa; min-width: 72px; }
+        .relay-select-block {
+            margin-bottom: 10px; padding: 12px 14px; background: #16213e;
+            border-radius: 8px; border: 1px solid #0f3460;
+        }
+        .relay-select-head {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+        }
+        .relay-select-lines { padding-left: 28px; color: #888; font-size: 12px; }
+        .relay-select-lines div { margin: 2px 0; font-family: 'Courier New', monospace; }
+
         .port-section-title {
             color: #00d4ff; font-size: 13px; font-weight: bold;
             margin: 12px 0 6px; padding-left: 4px;
@@ -710,6 +738,140 @@
             }
         }
 
+        function isEthernetDiModule(device, mod) {
+            return device?.connection_type !== 'USB'
+                && (mod?.di_channels?.length || 0) > 0
+                && !(mod?.do_channels?.length);
+        }
+
+        function switchEthernetDiView(di, mi, viewId, btn) {
+            const root = document.getElementById(`chassis-${di}-mod-${mi}`);
+            if (!root) return;
+            root.querySelectorAll('.tab-btn-usb').forEach(b => b.classList.remove('active'));
+            root.querySelectorAll('.usb-view-panel').forEach(p => p.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const panel = document.getElementById(`eth_di_view_${viewId}_${di}_${mi}`);
+            if (panel) panel.classList.add('active');
+        }
+
+        function renderEthernetDiRelayPairRow(di, mi, pair) {
+            const rn = pair.relayNum;
+            const lineRows = [pair.line0, pair.line1].filter(Boolean).map(item => {
+                const id = `${di}_${mi}_di_${item.channelIndex}`;
+                return `
+                <div class="relay-line-row" data-channel="${item.channel}" data-dio-id="${id}">
+                    <span class="relay-line-label">line ${item.globalLine}</span>
+                    <span class="dio-value" id="dio_val_${id}">--</span>
+                </div>`;
+            }).join('');
+            return `
+            <div class="relay-pair-row" data-relay="${rn}">
+                <div class="relay-pair-head">
+                    <span class="relay-pair-title">Relay ${rn}</span>
+                    <button class="btn-success btn-sm" onclick="readDIRelayPair(${di},${mi},${rn})">Read</button>
+                </div>
+                <div class="relay-pair-lines">${lineRows}</div>
+            </div>`;
+        }
+
+        function renderEthernetDiChannels(di, mi, mod, device) {
+            const pairs = filterDiRelayPairsBySaved(
+                mod.di_channels || [], device.name, mod.name
+            );
+            if (!pairs.length) {
+                return '<p style="color:#888;padding:12px;">No relays selected. Use the <strong>Select</strong> tab.</p>';
+            }
+            const lineCount = pairs.reduce((n, p) => n + (p.line0 ? 1 : 0) + (p.line1 ? 1 : 0), 0);
+            let html = `
+            <div class="dio-module-toolbar">
+                <span style="color:#00d4ff;font-size:13px;">${pairs.length} relay(s) · ${lineCount} line(s)</span>
+                <button class="btn-secondary btn-sm" onclick="readSelectedDIModule(${di},${mi})">Read All</button>
+            </div>`;
+            for (const pair of pairs) {
+                html += renderEthernetDiRelayPairRow(di, mi, pair);
+            }
+            return html;
+        }
+
+        function renderEthernetDiSelectView(di, mi, mod, device) {
+            const pairs = buildDiRelayPairs(mod.di_channels || []);
+            const allKeys = pairs.flatMap(relayPairLineKeys);
+            const saved = new Set(getSavedDiLines(device.name, mod.name) || allKeys);
+            let blocks = '';
+            for (const pair of pairs) {
+                const checked = isRelayPairInSet(saved, pair) ? 'checked' : '';
+                blocks += `
+                <div class="relay-select-block">
+                    <div class="relay-select-head">
+                        <input type="checkbox" id="di_relay_sel_${di}_${mi}_${pair.relayNum}" ${checked}>
+                        <strong style="color:#00d4ff;">Relay ${pair.relayNum}</strong>
+                    </div>
+                    <div class="relay-select-lines">
+                        ${[pair.line0, pair.line1].filter(Boolean).map(item =>
+                            `<div>line ${item.globalLine}</div>`
+                        ).join('')}
+                    </div>
+                </div>`;
+            }
+            return `
+                <p style="color:#aaa;font-size:13px;margin-bottom:8px;">
+                    Select relay pairs (2 lines each) for the <strong>Channels</strong> tab.
+                    <strong>Read</strong> on a relay reads both lines together.
+                </p>
+                ${blocks || '<p style="color:#888;">No digital input lines on this module.</p>'}
+                <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-primary" onclick="saveDiRelaySelection(${di},${mi},'${device.name}','${mod.name}')">Save</button>
+                    <button class="btn-secondary btn-sm" onclick="selectAllDiRelays(${di},${mi},true)">All</button>
+                    <button class="btn-secondary btn-sm" onclick="selectAllDiRelays(${di},${mi},false)">None</button>
+                </div>`;
+        }
+
+        function renderEthernetDiModulePanel(di, mi, mod, device) {
+            const v = (id, label, active) =>
+                `<button class="tab-btn-usb ${active}" onclick="switchEthernetDiView(${di},${mi},'${id}', this)">${label}</button>`;
+            return `
+                <div class="tabs-usb-view" id="eth_di_tabs_${di}_${mi}">
+                    ${v('channels', 'Channels', true)}
+                    ${v('select', 'Select', false)}
+                </div>
+                <div id="eth_di_view_channels_${di}_${mi}" class="usb-view-panel active channel-list">
+                    ${renderEthernetDiChannels(di, mi, mod, device)}
+                </div>
+                <div id="eth_di_view_select_${di}_${mi}" class="usb-view-panel channel-list">
+                    ${renderEthernetDiSelectView(di, mi, mod, device)}
+                </div>`;
+        }
+
+        function selectAllDiRelays(di, mi, on) {
+            document.querySelectorAll(`#eth_di_view_select_${di}_${mi} [id^="di_relay_sel_"]`)
+                .forEach(el => { el.checked = on; });
+        }
+
+        function saveDiRelaySelection(di, mi, deviceName, moduleName) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const pairs = buildDiRelayPairs(mod?.di_channels || []);
+            const keys = [];
+            for (const pair of pairs) {
+                const el = document.getElementById(`di_relay_sel_${di}_${mi}_${pair.relayNum}`);
+                if (el?.checked) keys.push(...relayPairLineKeys(pair));
+            }
+            saveSelectedDiLines(deviceName, moduleName, keys);
+            showToast(`Saved ${pairs.filter(p =>
+                document.getElementById(`di_relay_sel_${di}_${mi}_${p.relayNum}`)?.checked
+            ).length} relay(s)`);
+            const device = window._deviceStore[di];
+            const panel = document.getElementById(`eth_di_view_channels_${di}_${mi}`);
+            if (mod && panel && device) {
+                panel.innerHTML = renderEthernetDiChannels(di, mi, mod, device);
+            }
+        }
+
+        function getDiRelayPair(di, mi, relayNum) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const pairs = buildDiRelayPairs(mod?.di_channels || []);
+            return pairs.find(p => p.relayNum === relayNum) || null;
+        }
+
         function renderDiagnosticsView(di, mi) {
             return `
                 <p style="color:#aaa;font-size:13px;margin-bottom:8px;">
@@ -874,7 +1036,7 @@
         }
 
         function renderDigitalModuleToolbar(di, mi, mod, portFilter, device) {
-            if (!moduleHasDigital(mod)) return '';
+            if (!moduleHasDigitalOutput(mod)) return '';
             const filterNote = portFilter && portFilter.length < 12
                 ? ` <span style="color:#888;font-weight:normal;">(ports ${portFilter.join(', ')})</span>` : '';
             const readAllBtn = supportsDoHardwareRead(device, mod)
@@ -882,10 +1044,20 @@
                 : '';
             return `
             <div class="dio-module-toolbar">
-                <span style="color:#00d4ff;font-size:13px;">Digital I/O${filterNote}</span>
+                <span style="color:#00d4ff;font-size:13px;">Digital Output${filterNote}</span>
                 ${readAllBtn}
                 <button class="btn-success btn-sm" onclick="writeDigitalModule(${di},${mi},true)">All True</button>
                 <button class="btn-danger btn-sm" onclick="writeDigitalModule(${di},${mi},false)">All False</button>
+            </div>`;
+        }
+
+        function renderDiModuleToolbar(di, mi, mod) {
+            const count = mod.di_channels?.length || 0;
+            if (!count) return '';
+            return `
+            <div class="dio-module-toolbar">
+                <span style="color:#00d4ff;font-size:13px;">Digital Input (${count} lines)</span>
+                <button class="btn-secondary btn-sm" onclick="readDIModule(${di},${mi})">Read All</button>
             </div>`;
         }
 
@@ -969,8 +1141,12 @@
         }
 
         function renderModuleChannels(di, mi, mod, device) {
-            let html = moduleHasDigitalOutput(mod)
-                ? renderDigitalModuleToolbar(di, mi, mod, null, device) : '';
+            let html = '';
+            if (moduleHasDigitalOutput(mod)) {
+                html += renderDigitalModuleToolbar(di, mi, mod, null, device);
+            } else if ((mod.di_channels?.length || 0) > 0) {
+                html += renderDiModuleToolbar(di, mi, mod);
+            }
             (mod.ai_channels || []).forEach((ch, ci) => {
                 const id = `${di}_${mi}_ai_${ci}`;
                 html += `
@@ -1030,7 +1206,9 @@
                             <div class="module-meta">${mod.name} · Slot ${mod.slot_number} · ${mod.product_type}</div>
                             ${isUsbDigitalModule(device, mod)
                                 ? renderUsbModulePanel(di, mi, mod, device)
-                                : `<div class="channel-list">${renderModuleChannels(di, mi, mod, device)}</div>`}
+                                : isEthernetDiModule(device, mod)
+                                    ? renderEthernetDiModulePanel(di, mi, mod, device)
+                                    : `<div class="channel-list">${renderModuleChannels(di, mi, mod, device)}</div>`}
                         </div>`;
                 });
 
@@ -1101,19 +1279,82 @@
             return text;
         }
 
-        async function readDIChannel(di, mi, id) {
+        async function readDIChannel(di, mi, id, quiet = false) {
             const channel = channelFromId(id);
             if (!channel) {
-                showToast('Channel not found', 'error');
-                return;
+                if (!quiet) showToast('Channel not found', 'error');
+                return null;
             }
             const result = await apiCall('/api/di/read', 'POST', {
                 device_idx: di, module_idx: mi, channel
             });
             if (result) {
                 setDigitalValue(`dio_val_${id}`, result.state);
-                showToast(`${shortDigitalName(channel)}: ${result.state ? 'True' : 'False'}`);
+                if (!quiet) {
+                    showToast(`${shortDigitalName(channel)}: ${result.state ? 'True' : 'False'}`);
+                }
+                return result.state;
             }
+            return null;
+        }
+
+        async function readDIRelayPair(di, mi, relayNum, quiet = false) {
+            const pair = getDiRelayPair(di, mi, relayNum);
+            if (!pair) {
+                if (!quiet) showToast('Relay not found', 'error');
+                return null;
+            }
+            const items = [pair.line0, pair.line1].filter(Boolean);
+            const results = [];
+            for (const item of items) {
+                const id = `${di}_${mi}_di_${item.channelIndex}`;
+                const state = await readDIChannel(di, mi, id, true);
+                if (state !== null) results.push({ line: item.globalLine, state });
+            }
+            if (!results.length) {
+                if (!quiet) showToast(`Relay ${relayNum}: read failed`, 'error');
+                return null;
+            }
+            if (!quiet) {
+                const summary = results.map(r => `L${r.line}=${r.state ? 'T' : 'F'}`).join(', ');
+                showToast(`Relay ${relayNum}: ${summary}`);
+            }
+            return results;
+        }
+
+        async function readSelectedDIModule(di, mi) {
+            const device = window._deviceStore[di];
+            const mod = device?.modules?.[mi];
+            if (!mod) return;
+            const pairs = filterDiRelayPairsBySaved(
+                mod.di_channels || [], device.name, mod.name
+            );
+            if (!pairs.length) {
+                showToast('No relays selected — use Select tab', 'error');
+                return;
+            }
+            let ok = 0;
+            for (const pair of pairs) {
+                const res = await readDIRelayPair(di, mi, pair.relayNum, true);
+                if (res) ok++;
+            }
+            showToast(`Read ${ok}/${pairs.length} relay(s)`);
+        }
+
+        async function readDIModule(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const channels = mod?.di_channels || [];
+            if (!channels.length) {
+                showToast('No digital input lines on this module', 'error');
+                return;
+            }
+            let ok = 0;
+            for (let ci = 0; ci < channels.length; ci++) {
+                const id = `${di}_${mi}_di_${ci}`;
+                const state = await readDIChannel(di, mi, id, true);
+                if (state !== null) ok++;
+            }
+            showToast(`Read ${ok}/${channels.length} input line(s) from hardware`);
         }
 
         async function readAIChannel(di, mi, id) {

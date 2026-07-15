@@ -672,8 +672,17 @@ class DeviceManager:
                 if module.max_sample_rate > device_info.max_ai_rate:
                     device_info.max_ai_rate = module.max_sample_rate
 
-            # Also try to get device-level channel information
+            # Device-level channels only when modules did not already enumerate them
             self._add_device_level_channels(device, device_info)
+
+            for prefix in ('ai', 'ao', 'di', 'do', 'ci', 'co'):
+                ch_list = getattr(device_info, f'{prefix}_channels')
+                setattr(device_info, f'{prefix}_channels', self._dedupe_channel_names(ch_list))
+
+            for module in device_info.modules:
+                for prefix in ('ai', 'ao', 'di', 'do', 'ci', 'co'):
+                    ch_list = getattr(module, f'{prefix}_channels')
+                    setattr(module, f'{prefix}_channels', self._dedupe_channel_names(ch_list))
 
             if not self._is_device_reachable(device, device_info):
                 log.info(
@@ -949,9 +958,33 @@ class DeviceManager:
                       prefix, e)
             return []
 
+    def _normalize_channel_name(self, ch: Any) -> str:
+        """Return NI-DAQmx physical channel string (never PhysicalChannel repr)."""
+        name = getattr(ch, 'name', None)
+        if name:
+            return str(name)
+        text = str(ch).strip()
+        if text.startswith('PhysicalChannel('):
+            match = re.search(r'name=([^)]+)\)', text)
+            if match:
+                return match.group(1).strip()
+        return text
+
     def _channel_name(self, ch: Any) -> str:
         """Physical channel name as reported by NI-DAQmx."""
-        return str(getattr(ch, 'name', ch))
+        return self._normalize_channel_name(ch)
+
+    def _dedupe_channel_names(self, channels: List[str]) -> List[str]:
+        """Drop duplicate channels; prefer plain names over PhysicalChannel repr."""
+        seen: set = set()
+        ordered: List[str] = []
+        for raw in channels:
+            name = self._normalize_channel_name(raw)
+            key = name.lower()
+            if key not in seen:
+                seen.add(key)
+                ordered.append(name)
+        return ordered
 
     def _get_device_channels(self, device: Any, prefix: str) -> List[str]:
         """Enumerate channels on a device (same attributes as NI-DAQmx Python API)."""
@@ -1014,12 +1047,16 @@ class DeviceManager:
         }
 
         for prefix, attr in channel_attrs.items():
+            if device_info.modules and any(
+                getattr(m, f'{prefix}_channels', []) for m in device_info.modules
+            ):
+                continue
             try:
                 if hasattr(device, attr):
                     channels = getattr(device, attr)
                     existing = getattr(device_info, f'{prefix}_channels')
                     for ch in channels:
-                        ch_name = str(ch)
+                        ch_name = self._channel_name(ch)
                         if ch_name not in existing:
                             existing.append(ch_name)
             except Exception:
