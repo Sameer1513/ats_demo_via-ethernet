@@ -13,7 +13,7 @@ Features:
     - Context-based filtering
 
 Typical usage:
-    from logger import get_logger
+    from app_logging.logger import get_logger
     log = get_logger(__name__)
     log.info("Device connected: %s", device_name)
     log.error("Failed to read channel: %s", str(e))
@@ -348,3 +348,4 @@ def initialize_logging(level: str = 'INFO',
         log_dir: Directory for log files
     """
     log_manager.initialize(level=level, log_dir=log_dir)
+

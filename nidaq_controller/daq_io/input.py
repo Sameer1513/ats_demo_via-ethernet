@@ -6,12 +6,13 @@ single-sample reads, finite multi-sample reads, and continuous acquisition
 with live plotting and CSV export capabilities.
 
 Features:
-    - Single sample read
+    - Single sample read (RSE, NRSE, Differential)
     - Finite multi-sample acquisition
     - Continuous background acquisition
     - Configurable sample rate and sample count
     - Channel selection (single or multiple)
     - Voltage range configuration
+    - Terminal configuration selection (RSE, NRSE, Differential)
     - Live data visualization
     - CSV data export
     - Thread-safe operations
@@ -26,15 +27,69 @@ Typical usage:
 import time
 import threading
 import numpy as np
-from typing import List, Optional, Tuple, Dict, Any, Callable
+from typing import List, Optional, Tuple, Dict, Any, Callable, Union
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from logger import get_logger
-from task_manager import TaskManager, TaskType
-from device_manager import ModuleInfo
-from utils import export_to_csv, generate_output_filename, MovingAverage
+from app_logging.logger import get_logger
+from core.task_manager import TaskManager
+from core.device_manager import ModuleInfo
+from utils.utils import MovingAverage
+from utils.utils import export_to_csv, generate_output_filename
 
 log = get_logger(__name__)
+
+
+class TerminalConfig(Enum):
+    """
+    Terminal configuration for analog input channels.
+
+    Controls how the DAQ device measures the voltage on each AI channel.
+    Choose the configuration that matches your sensor/signal wiring for
+    accurate readings.
+
+    RSE (Referenced Single-Ended):
+        Each channel is measured relative to a common ground (COM).
+        Good for single-ended signals where all sources share a ground.
+
+    NRSE (Non-Referenced Single-Ended):
+        Each channel is measured relative to an isolated ground on the
+        module (instead of the chassis COM). Reduces ground-loop noise
+        when sources are not tied to the same ground as the DAQ.
+
+    DIFFERENTIAL:
+        Each channel is measured as the difference between a (+) and (-)
+        input pair. Best noise rejection for floating or isolated signals.
+        Maps to the NI-DAQmx ``DIFF`` terminal configuration.
+    """
+    RSE = "RSE"
+    NRSE = "NRSE"
+    DIFFERENTIAL = "DIFF"
+
+    @classmethod
+    def from_string(cls, value: Union[str, "TerminalConfig"]) -> "TerminalConfig":
+        """Parse a terminal config from a string or pass through an enum.
+
+        Accepts the NI-DAQmx attribute names (``RSE``, ``NRSE``, ``DIFF``)
+        as well as human-friendly aliases (``Differential``,
+        ``DIFFERENTIAL``).
+        """
+        if isinstance(value, cls):
+            return value
+        text = str(value).strip().upper()
+        # Accept human-friendly aliases for DIFFERENTIAL
+        aliases = {
+            "DIFFERENTIAL": cls.DIFFERENTIAL,
+        }
+        if text in aliases:
+            return aliases[text]
+        for member in cls:
+            if member.value.upper() == text:
+                return member
+        raise ValueError(
+            f"Unknown terminal config '{value}'. "
+            f"Valid: RSE, NRSE, DIFF (or 'Differential')"
+        )
 
 
 @dataclass
@@ -56,7 +111,7 @@ class AcquisitionConfig:
     num_samples: int = 100
     voltage_min: float = -10.0
     voltage_max: float = 10.0
-    terminal_config: str = "RSE"
+    terminal_config: TerminalConfig = TerminalConfig.RSE
     continuous: bool = False
 
 
@@ -153,13 +208,46 @@ class AnalogInputController:
             return self.module_info.voltage_ranges
         return [(-10.0, 10.0)]
 
+    def get_supported_terminal_configs(self) -> List[TerminalConfig]:
+        """
+        Get the terminal configurations supported by this controller.
+
+        All three standard NI-DAQmx configurations (RSE, NRSE, Differential)
+        are supported. The actual availability depends on the hardware module.
+
+        Returns:
+            List of supported TerminalConfig values
+        """
+        return list(TerminalConfig)
+
+    @staticmethod
+    def validate_terminal_config(
+        terminal_config: Union[str, TerminalConfig]
+    ) -> TerminalConfig:
+        """
+        Validate and normalize a terminal configuration.
+
+        Accepts strings (case-insensitive: "RSE", "nrse", "differential")
+        or TerminalConfig enum values.
+
+        Args:
+            terminal_config: Terminal configuration to validate
+
+        Returns:
+            Normalized TerminalConfig enum value
+
+        Raises:
+            ValueError: If the configuration is not recognized
+        """
+        return TerminalConfig.from_string(terminal_config)
+
     def start_single_acquisition(self,
                                   channels: List[str],
                                   sample_rate: float = 1000.0,
                                   num_samples: int = 100,
                                   voltage_min: float = -10.0,
                                   voltage_max: float = 10.0,
-                                  terminal_config: str = "RSE") -> Optional[str]:
+                                  terminal_config: Union[str, TerminalConfig] = TerminalConfig.RSE) -> Optional[str]:
         """
         Start a single (finite) analog input acquisition.
 
@@ -169,7 +257,7 @@ class AnalogInputController:
             num_samples: Number of samples per channel
             voltage_min: Minimum voltage
             voltage_max: Maximum voltage
-            terminal_config: Terminal configuration
+            terminal_config: Terminal configuration (RSE, NRSE, Differential)
 
         Returns:
             Task name if successful, None otherwise
@@ -180,6 +268,9 @@ class AnalogInputController:
             log.error("No valid channels specified for acquisition")
             return None
 
+        # Normalize terminal config
+        tc = self.validate_terminal_config(terminal_config)
+
         # Create task
         task_name = self.task_manager.create_ai_task(
             device_name=self.device_name,
@@ -187,7 +278,7 @@ class AnalogInputController:
             sample_rate=sample_rate,
             num_samples=num_samples,
             voltage_range=(voltage_min, voltage_max),
-            terminal_config=terminal_config
+            terminal_config=tc.value
         )
 
         if task_name is None:
@@ -201,7 +292,7 @@ class AnalogInputController:
             num_samples=num_samples,
             voltage_min=voltage_min,
             voltage_max=voltage_max,
-            terminal_config=terminal_config,
+            terminal_config=tc,
             continuous=False
         )
 
@@ -210,8 +301,8 @@ class AnalogInputController:
 
         log.info(
             "Started single acquisition: task=%s, channels=%s, "
-            "rate=%.1f Hz, samples=%d",
-            task_name, valid_channels, sample_rate, num_samples
+            "rate=%.1f Hz, samples=%d, terminal=%s",
+            task_name, valid_channels, sample_rate, num_samples, tc.value
         )
 
         return task_name
@@ -242,18 +333,22 @@ class AnalogInputController:
         # Process into per-channel data
         return self._process_read_data(raw_data, config, task_name)
 
-    def read_single_sample(self, channels: List[str],
+    def read_single_sample(self,
+                           channels: List[str],
                            voltage_min: float = -10.0,
-                           voltage_max: float = 10.0) -> Optional[Dict[str, float]]:
+                           voltage_max: float = 10.0,
+                           terminal_config: Union[str, TerminalConfig] = TerminalConfig.RSE) -> Optional[Dict[str, float]]:
         """
         Read a single sample from specified channels.
 
-        Convenience method for one-shot readings.
+        Convenience method for one-shot readings. Creates a short-lived
+        task, reads one sample, and cleans up.
 
         Args:
             channels: List of channels to read
             voltage_min: Minimum voltage
             voltage_max: Maximum voltage
+            terminal_config: Terminal configuration (RSE, NRSE, Differential)
 
         Returns:
             Dictionary mapping channel names to values, or None on failure
@@ -262,13 +357,17 @@ class AnalogInputController:
         if not valid_channels:
             return None
 
+        # Normalize terminal config
+        tc = self.validate_terminal_config(terminal_config)
+
         # Create a single-sample task
         task_name = self.task_manager.create_ai_task(
             device_name=self.device_name,
             channels=valid_channels,
             sample_rate=1000.0,
             num_samples=1,
-            voltage_range=(voltage_min, voltage_max)
+            voltage_range=(voltage_min, voltage_max),
+            terminal_config=tc.value
         )
 
         if task_name is None:
@@ -294,13 +393,81 @@ class AnalogInputController:
             # Clean up
             self.task_manager.clear_task(task_name)
 
+    def read_single_sample_rse(self,
+                               channels: List[str],
+                               voltage_min: float = -10.0,
+                               voltage_max: float = 10.0) -> Optional[Dict[str, float]]:
+        """
+        Read a single sample using RSE (Referenced Single-Ended) configuration.
+
+        Each channel is measured relative to the common ground (COM).
+        Use this when all signal sources share a ground with the DAQ device.
+
+        Args:
+            channels: List of channels to read
+            voltage_min: Minimum voltage
+            voltage_max: Maximum voltage
+
+        Returns:
+            Dictionary mapping channel names to values, or None on failure
+        """
+        return self.read_single_sample(
+            channels, voltage_min, voltage_max, TerminalConfig.RSE
+        )
+
+    def read_single_sample_nrse(self,
+                                channels: List[str],
+                                voltage_min: float = -10.0,
+                                voltage_max: float = 10.0) -> Optional[Dict[str, float]]:
+        """
+        Read a single sample using NRSE (Non-Referenced Single-Ended) configuration.
+
+        Each channel is measured relative to an isolated ground on the
+        module (not the chassis COM). Use this to reduce ground-loop noise
+        when signal sources are not tied to the DAQ ground.
+
+        Args:
+            channels: List of channels to read
+            voltage_min: Minimum voltage
+            voltage_max: Maximum voltage
+
+        Returns:
+            Dictionary mapping channel names to values, or None on failure
+        """
+        return self.read_single_sample(
+            channels, voltage_min, voltage_max, TerminalConfig.NRSE
+        )
+
+    def read_single_sample_differential(self,
+                                        channels: List[str],
+                                        voltage_min: float = -10.0,
+                                        voltage_max: float = 10.0) -> Optional[Dict[str, float]]:
+        """
+        Read a single sample using Differential configuration.
+
+        Each channel is measured as the difference between a (+) and (-)
+        input pair. Provides the best noise rejection for floating or
+        isolated signals.
+
+        Args:
+            channels: List of channels to read
+            voltage_min: Minimum voltage
+            voltage_max: Maximum voltage
+
+        Returns:
+            Dictionary mapping channel names to values, or None on failure
+        """
+        return self.read_single_sample(
+            channels, voltage_min, voltage_max, TerminalConfig.DIFFERENTIAL
+        )
+
     def start_continuous_acquisition(self,
                                       channels: List[str],
                                       sample_rate: float = 1000.0,
                                       num_samples: int = 100,
                                       voltage_min: float = -10.0,
                                       voltage_max: float = 10.0,
-                                      terminal_config: str = "RSE",
+                                      terminal_config: Union[str, TerminalConfig] = TerminalConfig.RSE,
                                       data_callback: Optional[Callable] = None) -> Optional[str]:
         """
         Start continuous analog input acquisition.
@@ -314,7 +481,7 @@ class AnalogInputController:
             num_samples: Samples per channel per read
             voltage_min: Minimum voltage
             voltage_max: Maximum voltage
-            terminal_config: Terminal configuration
+            terminal_config: Terminal configuration (RSE, NRSE, Differential)
             data_callback: Callback function for each data read
 
         Returns:
@@ -324,6 +491,9 @@ class AnalogInputController:
         if not valid_channels:
             return None
 
+        # Normalize terminal config
+        tc = self.validate_terminal_config(terminal_config)
+
         # Create task
         task_name = self.task_manager.create_ai_task(
             device_name=self.device_name,
@@ -331,7 +501,7 @@ class AnalogInputController:
             sample_rate=sample_rate,
             num_samples=num_samples,
             voltage_range=(voltage_min, voltage_max),
-            terminal_config=terminal_config
+            terminal_config=tc.value
         )
 
         if task_name is None:
@@ -344,7 +514,7 @@ class AnalogInputController:
             num_samples=num_samples,
             voltage_min=voltage_min,
             voltage_max=voltage_max,
-            terminal_config=terminal_config,
+            terminal_config=tc,
             continuous=True
         )
 
@@ -382,8 +552,8 @@ class AnalogInputController:
 
             log.info(
                 "Started continuous acquisition: task=%s, channels=%s, "
-                "rate=%.1f Hz",
-                task_name, valid_channels, sample_rate
+                "rate=%.1f Hz, terminal=%s",
+                task_name, valid_channels, sample_rate, tc.value
             )
 
         return task_name
@@ -543,6 +713,7 @@ class AnalogInputController:
                     'sample_rate': config.sample_rate,
                     'num_samples': config.num_samples,
                     'continuous': config.continuous,
+                    'terminal_config': config.terminal_config.value,
                     'buffer_size': self.get_buffer_size(task_name)
                 })
         return result

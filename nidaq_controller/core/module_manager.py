@@ -23,13 +23,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Optional, Dict, Any, Callable, Tuple
 import numpy as np
-from logger import get_logger
-from task_manager import TaskManager
-from device_manager import ModuleInfo, DeviceInfo
-from analog_input import AnalogInputController, AcquisitionResult
-from analog_output import AnalogOutputController, OutputConfig, \
+from app_logging.logger import get_logger
+from core.task_manager import TaskManager
+from core.device_manager import ModuleInfo, DeviceInfo
+from daq_io.input import AnalogInputController, AcquisitionResult
+from daq_io.output import AnalogOutputController, OutputConfig, \
     SignalType, WaveformType
-from digital_io import DigitalIOController, DigitalChannelInfo, CounterMode
+from daq_io.digital_io import DigitalIOController, DigitalChannelInfo, CounterMode
 
 log = get_logger(__name__)
 

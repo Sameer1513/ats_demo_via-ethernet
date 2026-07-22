@@ -27,7 +27,7 @@ import numpy as np
 from typing import List, Optional, Tuple, Dict, Any, Callable, Union
 from enum import Enum
 from dataclasses import dataclass, field
-from logger import get_logger
+from app_logging.logger import get_logger
 
 log = get_logger(__name__)
 

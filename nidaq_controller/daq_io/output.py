@@ -28,10 +28,10 @@ import numpy as np
 from typing import List, Optional, Tuple, Dict, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from logger import get_logger
-from task_manager import TaskManager
-from device_manager import ModuleInfo
-from utils import validate_numeric_input
+from app_logging.logger import get_logger
+from core.task_manager import TaskManager
+from core.device_manager import ModuleInfo
+from utils.utils import validate_numeric_input
 
 log = get_logger(__name__)
 

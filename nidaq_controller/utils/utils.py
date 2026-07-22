@@ -18,7 +18,7 @@ import time
 from typing import List, Optional, Tuple, Any, Dict, Callable
 from datetime import datetime
 from pathlib import Path
-from logger import get_logger
+from app_logging.logger import get_logger
 
 log = get_logger(__name__)
 

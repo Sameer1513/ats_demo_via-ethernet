@@ -28,7 +28,7 @@ import re
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-from logger import get_logger
+from app_logging.logger import get_logger
 
 log = get_logger(__name__)
 

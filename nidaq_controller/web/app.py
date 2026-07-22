@@ -34,16 +34,16 @@ if str(PACKAGE_DIR) not in sys.path:
 
 from flask import Flask, jsonify, request, render_template, send_from_directory, make_response
 
-from logger import initialize_logging, get_logger
-from config import global_config
-from task_manager import TaskManager
-from device_manager import DeviceManager, ModuleInfo
-from analog_input import AnalogInputController
-from analog_output import (
+from app_logging.logger import initialize_logging, get_logger
+from utils.config import global_config
+from core.task_manager import TaskManager
+from core.device_manager import DeviceManager, ModuleInfo
+from daq_io.input import AnalogInputController, TerminalConfig
+from daq_io.output import (
     AnalogOutputController, SignalType, WaveformType, OutputMode,
     convert_to_output_level,
 )
-from digital_io import DigitalIOController
+from daq_io.digital_io import DigitalIOController
 
 # Initialize
 initialize_logging(level='DEBUG')
@@ -69,8 +69,8 @@ def _ao_task_key(device_idx: int, module_idx: int, channel: str) -> str:
 _log_entries: list = []
 _max_log_entries = 200
 
-app = Flask(__name__, template_folder=str(PACKAGE_DIR / 'templates'),
-            static_folder=str(PACKAGE_DIR / 'static'))
+app = Flask(__name__, template_folder=str(PACKAGE_DIR.parent.parent / 'ui' / 'templates'),
+            static_folder=str(PACKAGE_DIR.parent.parent / 'ui' / 'static'))
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
@@ -412,29 +412,32 @@ def api_ai_read():
         channels = data.get('channels', [])
         rate = float(data.get('rate', 1000.0))
         samples = int(data.get('samples', 10))
-        
+        terminal_config = data.get('terminal_config', 'RSE')
+
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
-        
+
         controller = AnalogInputController(task_manager, module)
-        task_name = controller.start_single_acquisition(channels, rate, samples)
+        task_name = controller.start_single_acquisition(
+            channels, rate, samples, terminal_config=terminal_config
+        )
         if not task_name:
             err_msg = _ni_error_detail('Failed to start acquisition')
             add_log(f"AI read failed: {err_msg}", 'ERROR')
             return jsonify({'error': err_msg}), 500
-        
+
         task_manager.start_task(task_name)
         result = controller.read_data(task_name)
         task_manager.clear_task(task_name)
-        
+
         if result and result.success:
             values = []
             for ch, ch_data in result.data.items():
                 if len(ch_data) > 0:
                     values.append(f"{ch_data[-1]:.4f} V")
-            add_log(f"AI read: {device.name}/{module.name} channels={channels}")
-            return jsonify({'values': values, 'success': True})
+            add_log(f"AI read: {device.name}/{module.name} channels={channels} terminal={terminal_config}")
+            return jsonify({'values': values, 'success': True, 'terminal_config': terminal_config})
         
         err_msg = _ni_error_detail('No data returned')
         add_log(f"AI read failed: {err_msg}", 'ERROR')
@@ -459,19 +462,20 @@ def api_ai_start():
         channels = data.get('channels', [])
         rate = float(data.get('rate', 1000.0))
         samples = int(data.get('samples', 100))
-        
+        terminal_config = data.get('terminal_config', 'RSE')
+
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
-        
+
         controller = AnalogInputController(task_manager, module)
-        
+
         # Stop any existing continuous task for this module
         task_key = f"{di}_{mi}"
         if task_key in _active_ai_tasks:
             old_ctrl = _active_ai_tasks[task_key]['controller']
             old_ctrl.stop_acquisition(_active_ai_tasks[task_key]['task_name'])
-        
+
         def data_callback(result):
             """Callback for continuous acquisition updates."""
             try:
@@ -486,20 +490,22 @@ def api_ai_start():
                 _active_ai_tasks[task_key]['latest'] = values
             except Exception as cb_e:
                 log.error("AI data callback error: %s", cb_e)
-        
+
         task_name = controller.start_continuous_acquisition(
-            channels, rate, samples, data_callback=data_callback
+            channels, rate, samples, terminal_config=terminal_config,
+            data_callback=data_callback
         )
-        
+
         if task_name:
             _active_ai_tasks[task_key] = {
                 'task_name': task_name,
                 'controller': controller,
                 'latest': ['Starting...'],
-                'started': time.time()
+                'started': time.time(),
+                'terminal_config': terminal_config,
             }
-            add_log(f"Continuous AI started: {device.name}/{module.name}")
-            return jsonify({'task_name': task_name, 'success': True})
+            add_log(f"Continuous AI started: {device.name}/{module.name} terminal={terminal_config}")
+            return jsonify({'task_name': task_name, 'success': True, 'terminal_config': terminal_config})
         
         err_msg = _ni_error_detail('Failed to start continuous acquisition')
         add_log(f"AI start failed: {err_msg}", 'ERROR')
@@ -610,9 +616,14 @@ def api_ao_start():
                         'value_mode': value_mode,
                     })
 
-            if task_key in _active_ao_tasks:
-                controller.stop_output(_active_ao_tasks[task_key])
-                _remove_ao_task_refs(_active_ao_tasks[task_key])
+            # Stop all existing AO tasks on this module — cDAQ modules share
+            # the analog output subsystem, so a task on one channel reserves
+            # the entire module.
+            _prefix = f"ao_{di}_{mi}_"
+            for _existing_key in list(_active_ao_tasks.keys()):
+                if _existing_key.startswith(_prefix):
+                    controller.stop_output(_active_ao_tasks[_existing_key])
+                    _remove_ao_task_refs(_active_ao_tasks[_existing_key])
 
             _clear_ao_channel_tasks(module.name, channel)
 
@@ -696,6 +707,15 @@ def api_ao_write_config_module():
             is_current = '9266' in (module.product_type or '').upper()
             output_mode = OutputMode.CURRENT if is_current else OutputMode.VOLTAGE
             display_unit = 'mA' if is_current else 'V'
+
+            # Stop all existing AO tasks on this module — cDAQ modules share
+            # the analog output subsystem, so a task on one channel reserves
+            # the entire module.
+            _prefix = f"ao_{di}_{mi}_"
+            for _existing_key in list(_active_ao_tasks.keys()):
+                if _existing_key.startswith(_prefix):
+                    controller.stop_output(_active_ao_tasks[_existing_key])
+                    _remove_ao_task_refs(_active_ao_tasks[_existing_key])
 
             _stop_ao_tasks_for_channels(di, mi, module, controller, target_channels)
 
@@ -1126,7 +1146,7 @@ def api_status():
         'active_tasks': len(active_tasks),
         'active_ai': len(_active_ai_tasks),
         'active_ao': len(_active_ao_tasks),
-        'uptime': time.time() - _start_time if '_start_time' in globals() else 0
+        'uptime': time.time() - _start_time
     })
 
 

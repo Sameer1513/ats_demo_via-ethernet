@@ -14,7 +14,7 @@ os.chdir(SCRIPT_DIR)
 sys.path.insert(0, str(SCRIPT_DIR))
 
 try:
-    exec(open(SCRIPT_DIR / 'web_app.py').read())
+    exec(open(SCRIPT_DIR / 'web' / 'app.py').read())
 except Exception:
     traceback.print_exc()
     print("\nFailed to start web server. See error above.")

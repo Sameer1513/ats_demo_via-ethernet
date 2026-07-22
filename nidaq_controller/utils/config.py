@@ -19,6 +19,8 @@ import threading
 from typing import Any, Dict, Optional
 from pathlib import Path
 
+from app_logging.logger import get_logger
+
 
 class AppConfig:
     """
@@ -108,8 +110,7 @@ class AppConfig:
                     if loaded_config:
                         self._merge_config(self._config, loaded_config)
                 except (yaml.YAMLError, IOError) as e:
-                    import logging
-                    logging.getLogger(__name__).warning(
+                    get_logger(__name__).warning(
                         f"Failed to load config file: {e}. Using defaults."
                     )
             else:
@@ -136,8 +137,7 @@ class AppConfig:
                         sort_keys=False
                     )
             except IOError as e:
-                import logging
-                logging.getLogger(__name__).error(
+                get_logger(__name__).error(
                     f"Failed to save config file: {e}"
                 )
 
@@ -215,8 +215,7 @@ class AppConfig:
         try:
             self.config_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            import logging
-            logging.getLogger(__name__).error(
+            get_logger(__name__).error(
                 f"Failed to create config directory: {e}"
             )
 

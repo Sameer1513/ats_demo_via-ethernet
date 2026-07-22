@@ -1191,6 +1191,12 @@
             return `
             <div class="dio-module-toolbar">
                 <span style="color:#00d4ff;font-size:13px;">Analog Input (${count} ch) · ${unit}</span>
+                <label style="font-size:12px;color:#aaa;">Terminal:</label>
+                <select id="ai_termcfg_${di}_${mi}" onchange="setAiTerminalConfig(${di},${mi},this.value)">
+                    <option value="RSE">RSE</option>
+                    <option value="NRSE">NRSE</option>
+                    <option value="DIFF">Differential</option>
+                </select>
                 <button class="btn-secondary btn-sm" onclick="readAIModule(${di},${mi})">Read All</button>
             </div>`;
         }
@@ -1651,6 +1657,16 @@
             showToast(`Read ${ok}/${channels.length} input line(s) from hardware`);
         }
 
+        window._ai_terminal_configs = {};
+
+        function setAiTerminalConfig(di, mi, value) {
+            window._ai_terminal_configs[`${di}_${mi}`] = value;
+        }
+
+        function getAiTerminalConfig(di, mi) {
+            return window._ai_terminal_configs[`${di}_${mi}`] || 'RSE';
+        }
+
         async function readAIChannel(di, mi, id, quiet = false) {
             const ci = channelIndexFromId(id, 'ai');
             const mod = window._deviceStore[di]?.modules?.[mi];
@@ -1659,14 +1675,16 @@
                 if (!quiet) showToast('Channel not found', 'error');
                 return null;
             }
+            const terminal_config = getAiTerminalConfig(di, mi);
             const result = await apiCall('/api/ai/read', 'POST', {
-                device_idx: di, module_idx: mi, channels: [channel], rate: 1000, samples: 10
+                device_idx: di, module_idx: mi, channels: [channel], rate: 1000, samples: 10,
+                terminal_config
             });
             if (result?.values?.length) {
                 const text = result.values[0];
                 const el = document.getElementById(`val_${id}`);
                 if (el) el.textContent = text;
-                if (!quiet) showToast(`${shortChannelName(channel)}: ${text}`);
+                if (!quiet) showToast(`${shortChannelName(channel)}: ${text} (${terminal_config})`);
                 return text;
             }
             return null;
@@ -1679,8 +1697,10 @@
                 showToast('No analog input channels', 'error');
                 return;
             }
+            const terminal_config = getAiTerminalConfig(di, mi);
             const result = await apiCall('/api/ai/read', 'POST', {
-                device_idx: di, module_idx: mi, channels, rate: 1000, samples: 10
+                device_idx: di, module_idx: mi, channels, rate: 1000, samples: 10,
+                terminal_config
             }, 60000);
             if (!result?.values?.length) return;
             let ok = 0;
@@ -1695,7 +1715,7 @@
                     }
                 }
             });
-            showToast(`Read ${ok}/${channels.length} analog input channel(s)`);
+            showToast(`Read ${ok}/${channels.length} analog input channel(s) (${terminal_config})`);
         }
 
         function buildAoWritePayload(id) {

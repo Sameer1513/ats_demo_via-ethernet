@@ -4,4 +4,4 @@ import runpy
 from pathlib import Path
 
 if __name__ == '__main__':
-    runpy.run_path(str(Path(__file__).resolve().parent / 'web_app.py'), run_name='__main__')
+    runpy.run_path(str(Path(__file__).resolve().parent / 'web' / 'app.py'), run_name='__main__')
