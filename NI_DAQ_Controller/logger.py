@@ -1,5 +1,5 @@
 """
-Logging module for NI DAQ Controller.
+Logging module for ATS Test System.
 
 Provides a centralized logging system with file rotation, console output,
 and structured log formatting. All application modules use this logger for
@@ -252,7 +252,7 @@ class LogManager:
             max_file_size_mb: Maximum file size in MB before rotation
             backup_count: Number of backup files to keep
         """
-        log_file = self.log_dir / 'ni_daq_controller.log'
+        log_file = self.log_dir / 'ats_test_system.log'
 
         file_handler = RotatingFileHandler(
             log_file,

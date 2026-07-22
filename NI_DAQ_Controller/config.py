@@ -1,5 +1,5 @@
 """
-Configuration management module for NI DAQ Controller.
+Configuration management module for ATS Test System.
 
 This module handles application configuration, including default settings,
 user preferences, and hardware-specific configurations. It uses YAML for
@@ -36,7 +36,7 @@ class AppConfig:
 
     DEFAULT_CONFIG: Dict[str, Any] = {
         'application': {
-            'title': 'NI DAQ Controller',
+            'title': 'ATS Test System',
             'theme': 'dark-blue',
             'window_size': (1400, 900),
             'min_window_size': (1024, 600),
@@ -79,12 +79,12 @@ class AppConfig:
 
         Args:
             config_dir: Optional custom configuration directory.
-                        Defaults to '~/.ni_daq_controller/'
+                        Defaults to '~/.ats_test_system/'
         """
         if config_dir:
             self.config_dir = Path(config_dir)
         else:
-            self.config_dir = Path.home() / '.ni_daq_controller'
+            self.config_dir = Path.home() / '.ats_test_system'
 
         self.config_file = self.config_dir / 'config.yaml'
         self._config: Dict[str, Any] = {}

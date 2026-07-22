@@ -1,4 +1,4 @@
-# NI DAQ Controller - Dependencies
+# ATS Test System - Dependencies
 # Python 3.11+ required
 
 # NI DAQmx Python API (required for hardware communication)

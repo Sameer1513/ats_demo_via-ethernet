@@ -1,5 +1,5 @@
 """
-Analog Input module for NI DAQ Controller.
+Analog Input module for ATS Test System.
 
 Provides high-level operations for analog input acquisition including
 single-sample reads, finite multi-sample reads, and continuous acquisition

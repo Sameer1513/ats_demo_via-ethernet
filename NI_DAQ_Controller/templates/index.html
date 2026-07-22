@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NI DAQ Controller</title>
+    <title>ATS Test System</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -150,6 +150,23 @@
         .log-warning { color: #ffd54f; }
         .log-error { color: #ef9a9a; }
 
+        .dashboard-notice {
+            margin-bottom: 16px; padding: 14px 18px;
+            background: #1a2747; border: 1px solid #0f3460;
+            border-left: 4px solid #00d4ff; border-radius: 8px;
+        }
+        .dashboard-notice h3 {
+            font-size: 14px; color: #00d4ff; margin-bottom: 8px; font-weight: 600;
+        }
+        .dashboard-notice p {
+            font-size: 13px; color: #b0bec5; margin-bottom: 8px; line-height: 1.5;
+        }
+        .dashboard-notice ol {
+            margin: 0; padding-left: 20px; color: #ccc; font-size: 13px; line-height: 1.6;
+        }
+        .dashboard-notice li { margin-bottom: 4px; }
+        .dashboard-notice li strong { color: #e0e0e0; }
+
         .toast {
             position: fixed; bottom: 20px; right: 20px;
             padding: 12px 24px; border-radius: 6px; color: white;
@@ -289,6 +306,70 @@
             margin: 12px 0 6px; padding-left: 4px;
         }
 
+        .ao-config-panel {
+            background: #16213e;
+            border: 1px solid #1565c0;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin: 8px 0 12px;
+        }
+        .ao-config-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #1565c0;
+        }
+        .ao-config-title {
+            color: #b0bec5;
+            font-size: 12px;
+            font-weight: normal;
+            line-height: 1.4;
+        }
+        .ao-config-close {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .ao-config-close:hover {
+            color: #fff;
+            background: #c62828;
+        }
+        .ao-config-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .ao-config-row label {
+            font-size: 12px;
+            color: #aaa;
+        }
+        .ao-config-row input.ao-input {
+            width: 80px;
+        }
+        .ao-config-row select {
+            min-width: 70px;
+        }
+        .ao-chk {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .ao-channel-select {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: 4px;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 8px; }
             .channel-controls { flex-direction: column; align-items: stretch; }
@@ -298,7 +379,7 @@
 <body>
     <nav class="navbar">
         <div>
-            <h1>🔧 NI DAQ Controller</h1>
+            <h1>🔧 ATS Test System</h1>
             <div class="status" id="statusBar">Initializing...</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -313,6 +394,15 @@
         </div>
         
         <div id="dashboard" class="tab-panel active">
+            <div class="dashboard-notice" role="note" aria-label="Device detection guidance">
+                <h3>ℹ️ Device Detection </h3>
+                <p>If NI DAQ devices are not detected, follow these steps in order:</p>
+                <ol>
+                    <li><strong>Refresh</strong> — Click <strong>Refresh</strong> in the toolbar to rescan for connected devices.</li>
+                    <li><strong>Check wiring</strong> — Verify that each NI DAQ device is powered on and that USB or Ethernet cables are securely connected.</li>
+                    <li><strong>Restart the server</strong> — If devices are still not detected, stop and restart the ATS Test System server, then click <strong>Refresh</strong> again.</li>
+                </ol>
+            </div>
             <div id="deviceCards"></div>
             <div style="margin-top:16px;">
                 <h3 style="color:#00d4ff;margin-bottom:8px;">📝 System Log</h3>
@@ -387,7 +477,13 @@
                 const opts = { method, headers: {'Content-Type': 'application/json'}, signal: controller.signal };
                 if (body) opts.body = JSON.stringify(body);
                 const resp = await fetch(endpoint, opts);
-                const data = await resp.json();
+                const text = await resp.text();
+                let data;
+                try {
+                    data = text ? JSON.parse(text) : {};
+                } catch {
+                    throw new Error(text.slice(0, 200) || `Server error (${resp.status})`);
+                }
                 if (!resp.ok) throw new Error(data.error || 'API error');
                 return data;
             } catch (e) {
@@ -623,11 +719,38 @@
             return kind === 'RTD' || kind === 'POT';
         }
 
+        function mappingTabTitle(kind) {
+            const titles = {
+                RTD: 'RTD', POT: 'POT', DI_DRY: 'DI Dry', DI_WET: 'DI Wet', AO_MAP: 'AO Map',
+            };
+            return titles[kind] || kind;
+        }
+
+        function collectMappingChannels(mod, deviceName, kind) {
+            const groups = DAQ_USB_CONFIG[kind] || [];
+            const doCh = digitalChannelsForModule(mod);
+            const channels = new Set();
+            for (const grp of groups) {
+                for (const row of grp.rows) {
+                    const ch = resolveNiChannel(deviceName, doCh, row.niLine);
+                    if (ch) channels.add(ch);
+                }
+            }
+            return [...channels];
+        }
+
         function renderMappingView(di, mi, mod, deviceName, kind) {
             const groups = DAQ_USB_CONFIG[kind] || [];
             const doCh = digitalChannelsForModule(mod);
             const withOhm = mappingUsesOhm(kind);
-            let html = `<p style="color:#888;font-size:12px;margin-bottom:10px;">
+            const channelCount = collectMappingChannels(mod, deviceName, kind).length;
+            let html = `
+            <div class="dio-module-toolbar">
+                <span style="color:#00d4ff;font-size:13px;">${mappingTabTitle(kind)} · ${channelCount} relay(s)</span>
+                <button class="btn-success btn-sm" onclick="writeMappingTab(${di},${mi},'${deviceName}','${kind}',true)">All True</button>
+                <button class="btn-danger btn-sm" onclick="writeMappingTab(${di},${mi},'${deviceName}','${kind}',false)">All False</button>
+            </div>
+            <p style="color:#888;font-size:12px;margin-bottom:10px;">
                 NI line <strong>P{port}.{line}</strong> — close NI MAX Test Panel before writing.</p>`;
             for (const grp of groups) {
                 const groupLabel = grp.channel != null
@@ -1061,6 +1184,64 @@
             </div>`;
         }
 
+        function renderAiModuleToolbar(di, mi, mod) {
+            const count = mod.ai_channels?.length || 0;
+            if (!count) return '';
+            const unit = 'V';
+            return `
+            <div class="dio-module-toolbar">
+                <span style="color:#00d4ff;font-size:13px;">Analog Input (${count} ch) · ${unit}</span>
+                <button class="btn-secondary btn-sm" onclick="readAIModule(${di},${mi})">Read All</button>
+            </div>`;
+        }
+
+        function renderAoModuleToolbar(di, mi, mod) {
+            const count = mod.ao_channels?.length || 0;
+            if (!count) return '';
+            const unit = mod.ao_output_unit === 'current' ? 'mA' : 'V';
+            const rmsLabel = unit === 'mA' ? 'Irms' : 'Vrms';
+            return `
+            <div class="dio-module-toolbar" id="ao_toolbar_${di}_${mi}">
+                <span style="color:#00d4ff;font-size:13px;">Analog Output (${count} ch) · ${unit}</span>
+                <button class="btn-warning btn-sm" onclick="writeAOModule(${di},${mi})">Write All</button>
+                <button class="btn-primary btn-sm" onclick="openAoConfigPanel(${di},${mi})">Write Config</button>
+            </div>
+            <div class="ao-config-panel" id="ao_config_panel_${di}_${mi}" style="display:none;">
+                <div class="ao-config-header">
+                    <span class="ao-config-title">You can configure and write to all channels at once</span>
+                    <button type="button" class="ao-config-close" onclick="closeAoConfigPanel(${di},${mi})" title="Close">×</button>
+                </div>
+                <div class="ao-config-row">
+                    <label>Signal:</label>
+                    <select id="ao_cfg_sig_${di}_${mi}" onchange="updateAoConfigFields(${di},${mi})">
+                        <option>DC</option><option>AC</option>
+                    </select>
+                    <span id="ao_cfg_dc_${di}_${mi}">
+                        <label>Value (${unit}):</label>
+                        <input type="number" class="ao-input" id="ao_cfg_val_${di}_${mi}" value="1.0" step="any" min="0">
+                    </span>
+                    <span id="ao_cfg_ac_${di}_${mi}" class="ao-ac-fields" style="display:none;">
+                        <label>Mode:</label>
+                        <select id="ao_cfg_vm_${di}_${mi}">
+                            <option value="direct">Direct</option>
+                            <option value="vrms">${rmsLabel}</option>
+                        </select>
+                        <label>Value (${unit}):</label>
+                        <input type="number" class="ao-input" id="ao_cfg_amp_${di}_${mi}" value="1.0" step="any" min="0">
+                        <label>Hz:</label>
+                        <input type="number" class="ao-input" id="ao_cfg_freq_${di}_${mi}" value="50" min="1" style="width:70px;">
+                        <label>Wave:</label>
+                        <select id="ao_cfg_wf_${di}_${mi}">
+                            <option>Sine</option><option>Square</option><option>Triangle</option><option>Sawtooth</option>
+                        </select>
+                    </span>
+                    <button class="btn-secondary btn-sm" onclick="selectAllAoChannels(${di},${mi},true)">Select All</button>
+                    <button class="btn-secondary btn-sm" onclick="selectAllAoChannels(${di},${mi},false)">Clear</button>
+                    <button class="btn-warning" onclick="writeAOConfigModule(${di},${mi})">Apply Config to Selected</button>
+                </div>
+            </div>`;
+        }
+
         function renderDigitalChannelRow(di, mi, ci, channel, mod, device) {
             const id = `${di}_${mi}_dio_${ci}`;
             const hwRead = supportsDoHardwareRead(device, mod);
@@ -1092,6 +1273,9 @@
             const id = `${di}_${mi}_ao_${ci}`;
             return `
             <div class="channel-row" data-channel="${channel}" data-ao-unit="${aoUnit}">
+                <span class="ao-channel-select">
+                    <input type="checkbox" class="ao-chk" id="ao_chk_${id}" checked title="Include in Apply Config">
+                </span>
                 <span class="channel-name">${shortChannelName(channel)}</span>
                 <span class="channel-type write">WRITE</span>
                 <div class="channel-controls">
@@ -1118,6 +1302,7 @@
                         </select>
                     </span>
                     <button class="btn-warning" onclick="writeAO(${di},${mi},'${id}')">Write</button>
+                    <span style="font-size:13px;font-weight:bold;color:#fff;margin-left:4px;padding:2px 6px;background:#0f3460;border-radius:3px;">analog output ${ci} - channel ${ci + 1}</span>
                 </div>
                 <span class="channel-value" id="ao_status_${id}">--</span>
             </div>`;
@@ -1147,6 +1332,12 @@
             } else if ((mod.di_channels?.length || 0) > 0) {
                 html += renderDiModuleToolbar(di, mi, mod);
             }
+            if ((mod.ai_channels?.length || 0) > 0) {
+                html += renderAiModuleToolbar(di, mi, mod);
+            }
+            if ((mod.ao_channels?.length || 0) > 0) {
+                html += renderAoModuleToolbar(di, mi, mod);
+            }
             (mod.ai_channels || []).forEach((ch, ci) => {
                 const id = `${di}_${mi}_ai_${ci}`;
                 html += `
@@ -1155,6 +1346,7 @@
                     <span class="channel-type read">READ</span>
                     <div class="channel-controls">
                         <button class="btn-success" onclick="readAIChannel(${di},${mi},'${id}')">Read</button>
+                        <span style="font-size:13px;font-weight:bold;color:#fff;margin-left:4px;padding:2px 6px;background:#0f3460;border-radius:3px;">analog input ${ci} - channel ${ci + 1}</span>
                     </div>
                     <span class="channel-value" id="val_${id}">-- V</span>
                 </div>`;
@@ -1246,6 +1438,102 @@
             document.getElementById(`ao_ac_${id}`).style.display = signal === 'AC' ? 'inline-flex' : 'none';
         }
 
+        function openAoConfigPanel(di, mi) {
+            const panel = document.getElementById(`ao_config_panel_${di}_${mi}`);
+            if (panel) panel.style.display = 'block';
+        }
+
+        function closeAoConfigPanel(di, mi) {
+            const panel = document.getElementById(`ao_config_panel_${di}_${mi}`);
+            if (panel) panel.style.display = 'none';
+        }
+
+        function updateAoConfigFields(di, mi) {
+            const signal = document.getElementById(`ao_cfg_sig_${di}_${mi}`).value;
+            document.getElementById(`ao_cfg_dc_${di}_${mi}`).style.display = signal === 'DC' ? 'inline-flex' : 'none';
+            document.getElementById(`ao_cfg_ac_${di}_${mi}`).style.display = signal === 'AC' ? 'inline-flex' : 'none';
+        }
+
+        function getSelectedAoChannels(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            if (!mod?.ao_channels?.length) return [];
+            const selected = [];
+            mod.ao_channels.forEach((ch, ci) => {
+                const chk = document.getElementById(`ao_chk_${di}_${mi}_ao_${ci}`);
+                if (chk?.checked) selected.push(ch);
+            });
+            return selected;
+        }
+
+        function selectAllAoChannels(di, mi, checked) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            (mod?.ao_channels || []).forEach((ch, ci) => {
+                const chk = document.getElementById(`ao_chk_${di}_${mi}_ao_${ci}`);
+                if (chk) chk.checked = checked;
+            });
+        }
+
+        async function writeAOConfigModule(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            if (!mod || !mod.ao_channels?.length) {
+                showToast('No analog output channels', 'error');
+                return;
+            }
+            const channels = getSelectedAoChannels(di, mi);
+            if (!channels.length) {
+                showToast('Select at least one channel', 'error');
+                return;
+            }
+            const signal = document.getElementById(`ao_cfg_sig_${di}_${mi}`).value;
+            const value_mode = signal === 'DC'
+                ? 'direct'
+                : (document.getElementById(`ao_cfg_vm_${di}_${mi}`)?.value || 'direct');
+            let value, amplitude, frequency, waveform;
+            if (signal === 'DC') {
+                value = parseFloat(document.getElementById(`ao_cfg_val_${di}_${mi}`).value);
+                amplitude = value;
+                frequency = 0;
+                waveform = 'Sine';
+            } else {
+                value = 0;
+                amplitude = parseFloat(document.getElementById(`ao_cfg_amp_${di}_${mi}`).value);
+                frequency = parseFloat(document.getElementById(`ao_cfg_freq_${di}_${mi}`).value);
+                waveform = document.getElementById(`ao_cfg_wf_${di}_${mi}`).value;
+            }
+            if ([value, amplitude, frequency].some(v => Number.isNaN(v))) {
+                showToast('Invalid values in config', 'error');
+                return;
+            }
+            const result = await apiCall('/api/ao/write-config-module', 'POST', {
+                device_idx: di, module_idx: mi,
+                signal, value_mode, value, amplitude, frequency, waveform,
+                channels
+            }, 60000);
+            if (result) {
+                const ok = result.results?.filter(r => r.success).length || 0;
+                const total = result.results?.length || 0;
+                showToast(`AO config applied: ${ok}/${total} channel(s) (${result.signal})`);
+                // Update individual channel status displays
+                if (result.results) {
+                    result.results.forEach(r => {
+                        // Find the status element for this channel
+                        const ci = mod.ao_channels.indexOf(r.channel);
+                        if (ci >= 0 && r.success) {
+                            const id = `${di}_${mi}_ao_${ci}`;
+                            const statusEl = document.getElementById(`ao_status_${id}`);
+                            if (statusEl) {
+                                let text = `${r.applied_value} ${result.unit}`;
+                                if (signal === 'AC') {
+                                    text += ` @ ${frequency} Hz ${waveform}`;
+                                }
+                                statusEl.textContent = text;
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
         function updateLog(entries) {
             const container = document.getElementById('logContainer');
             if (!entries?.length) return;
@@ -1262,8 +1550,14 @@
             const dioRow = document.querySelector(`[data-dio-id="${id}"]`);
             if (dioRow?.dataset?.channel) return dioRow.dataset.channel;
             const el = document.getElementById(`ao_sig_${id}`)
-                || document.getElementById(`dio_val_${id}`);
+                || document.getElementById(`dio_val_${id}`)
+                || document.getElementById(`val_${id}`);
             return el?.closest('.channel-row')?.dataset?.channel;
+        }
+
+        function channelIndexFromId(id, prefix) {
+            const m = String(id).match(new RegExp(`_${prefix}_(\\d+)$`));
+            return m ? parseInt(m[1], 10) : -1;
         }
 
         function formatAppliedOutput(result, signal, id) {
@@ -1357,37 +1651,115 @@
             showToast(`Read ${ok}/${channels.length} input line(s) from hardware`);
         }
 
-        async function readAIChannel(di, mi, id) {
-            const channel = channelFromId(id);
+        async function readAIChannel(di, mi, id, quiet = false) {
+            const ci = channelIndexFromId(id, 'ai');
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const channel = mod?.ai_channels?.[ci] || channelFromId(id);
+            if (!channel) {
+                if (!quiet) showToast('Channel not found', 'error');
+                return null;
+            }
             const result = await apiCall('/api/ai/read', 'POST', {
-                device_idx: di, module_idx: mi, channels: [channel], rate: 1000, samples: 1
+                device_idx: di, module_idx: mi, channels: [channel], rate: 1000, samples: 10
             });
-            if (result) document.getElementById(`val_${id}`).textContent = result.values?.[0] || '--';
+            if (result?.values?.length) {
+                const text = result.values[0];
+                const el = document.getElementById(`val_${id}`);
+                if (el) el.textContent = text;
+                if (!quiet) showToast(`${shortChannelName(channel)}: ${text}`);
+                return text;
+            }
+            return null;
         }
 
-        async function writeAO(di, mi, id) {
+        async function readAIModule(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const channels = mod?.ai_channels || [];
+            if (!channels.length) {
+                showToast('No analog input channels', 'error');
+                return;
+            }
+            const result = await apiCall('/api/ai/read', 'POST', {
+                device_idx: di, module_idx: mi, channels, rate: 1000, samples: 10
+            }, 60000);
+            if (!result?.values?.length) return;
+            let ok = 0;
+            channels.forEach((ch, ci) => {
+                const id = `${di}_${mi}_ai_${ci}`;
+                const text = result.values[ci];
+                if (text) {
+                    const el = document.getElementById(`val_${id}`);
+                    if (el) {
+                        el.textContent = text;
+                        ok++;
+                    }
+                }
+            });
+            showToast(`Read ${ok}/${channels.length} analog input channel(s)`);
+        }
+
+        function buildAoWritePayload(id) {
+            const signalEl = document.getElementById(`ao_sig_${id}`);
+            if (!signalEl) return null;
             const channel = channelFromId(id);
-            const signal = document.getElementById(`ao_sig_${id}`).value;
-            const value_mode = signal === 'DC' ? 'direct' : (document.getElementById(`ao_valmode_${id}`)?.value || 'direct');
+            if (!channel) return null;
+            const signal = signalEl.value;
+            const value_mode = signal === 'DC'
+                ? 'direct'
+                : (document.getElementById(`ao_valmode_${id}`)?.value || 'direct');
             let value, freq, wf, amp;
             if (signal === 'DC') {
                 value = parseFloat(document.getElementById(`ao_set_${id}`).value);
-                freq = 0; wf = 'Sine'; amp = value;
+                freq = 0;
+                wf = 'Sine';
+                amp = value;
             } else {
                 value = 0;
                 freq = parseFloat(document.getElementById(`ao_freq_${id}`).value);
                 wf = document.getElementById(`ao_wf_${id}`).value;
                 amp = parseFloat(document.getElementById(`ao_amp_${id}`).value);
             }
-            const result = await apiCall('/api/ao/start', 'POST', {
-                device_idx: di, module_idx: mi, channel, signal, value_mode,
-                value, frequency: freq, waveform: wf, amplitude: amp
-            });
-            if (result) {
-                const text = formatAppliedOutput(result, signal, id);
-                showToast(`Written: ${shortChannelName(channel)} = ${text}`);
-                document.getElementById(`ao_status_${id}`).textContent = text;
+            if ([value, freq, amp].some(v => Number.isNaN(v))) return null;
+            return { channel, signal, value_mode, value, frequency: freq, waveform: wf, amplitude: amp };
+        }
+
+        async function writeAOChannel(di, mi, id, quiet = false) {
+            const payload = buildAoWritePayload(id);
+            if (!payload) {
+                if (!quiet) showToast('Invalid channel or value', 'error');
+                return false;
             }
+            const { channel, ...body } = payload;
+            const result = await apiCall('/api/ao/start', 'POST', {
+                device_idx: di, module_idx: mi, channel, ...body
+            }, 30000);
+            if (result) {
+                const text = formatAppliedOutput(result, body.signal, id);
+                const statusEl = document.getElementById(`ao_status_${id}`);
+                if (statusEl) statusEl.textContent = text;
+                if (!quiet) showToast(`Written: ${shortChannelName(channel)} = ${text}`);
+                return true;
+            }
+            return false;
+        }
+
+        async function writeAO(di, mi, id) {
+            await writeAOChannel(di, mi, id, false);
+        }
+
+        async function writeAOModule(di, mi) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            const channels = mod?.ao_channels || [];
+            if (!channels.length) {
+                showToast('No analog output channels', 'error');
+                return;
+            }
+            let ok = 0;
+            for (let ci = 0; ci < channels.length; ci++) {
+                const id = `${di}_${mi}_ao_${ci}`;
+                if (await writeAOChannel(di, mi, id, true)) ok++;
+            }
+            showToast(`Wrote ${ok}/${channels.length} analog output channel(s)`);
         }
 
         function formatDigitalValue(val) {
@@ -1421,6 +1793,43 @@
         }
 
 
+        async function writeDigitalChannels(di, mi, channels, state, label) {
+            const count = channels.length;
+            if (!count) {
+                showToast(`No writable channels${label ? ` in ${label}` : ''}`, 'error');
+                return;
+            }
+            const modRoot = document.getElementById(`chassis-${di}-mod-${mi}`);
+            modRoot?.querySelectorAll('.dio-write-btn').forEach(b => { b.disabled = true; });
+            try {
+                const result = await apiCall('/api/do/write-module', 'POST', {
+                    device_idx: di, module_idx: mi,
+                    states: Object.fromEntries(channels.map(ch => [ch, state]))
+                }, 60000);
+                if (result?.states) {
+                    applyModuleDigitalStates(di, mi, result.states);
+                    const prefix = label ? `${label}: ` : '';
+                    if (result.failed_ports?.length) {
+                        showToast(
+                            `${prefix}ports ${result.failed_ports.join(', ')} failed — set to Output in NI MAX`,
+                            'error'
+                        );
+                    } else {
+                        showToast(`${prefix}${count} relay(s) → ${state ? 'True' : 'False'}`);
+                    }
+                }
+            } finally {
+                modRoot?.querySelectorAll('.dio-write-btn').forEach(b => { b.disabled = false; });
+            }
+        }
+
+        async function writeMappingTab(di, mi, deviceName, kind, state) {
+            const mod = window._deviceStore[di]?.modules?.[mi];
+            if (!mod) return;
+            const channels = collectMappingChannels(mod, deviceName, kind);
+            await writeDigitalChannels(di, mi, channels, state, mappingTabTitle(kind));
+        }
+
         async function writeDigitalModule(di, mi, state) {
             const device = window._deviceStore[di];
             const mod = device?.modules?.[mi];
@@ -1429,26 +1838,7 @@
                 const filtered = filteredChannelsByPort(mod, device.name);
                 if (filtered.channels.length) channels = filtered.channels;
             }
-            const count = channels.length;
-            if (!count) {
-                showToast('No writable channels', 'error');
-                return;
-            }
-            const result = await apiCall('/api/do/write-module', 'POST', {
-                device_idx: di, module_idx: mi,
-                states: Object.fromEntries(channels.map(ch => [ch, state]))
-            }, 60000);
-            if (result?.states) {
-                applyModuleDigitalStates(di, mi, result.states);
-                if (result.failed_ports?.length) {
-                    showToast(
-                        `Ports ${result.failed_ports.join(', ')} failed — set to Output in NI MAX`,
-                        'error'
-                    );
-                } else {
-                    showToast(`All ${count} channel(s) → ${state ? 'True' : 'False'}`);
-                }
-            }
+            await writeDigitalChannels(di, mi, channels, state, 'NI DAQ');
         }
 
         async function readDOChannel(di, mi, id, quiet = false) {

@@ -1,5 +1,5 @@
 """
-Device Manager module for NI DAQ Controller.
+Device Manager module for ATS Test System.
 
 Handles automatic discovery and management of NI DAQ devices connected to the
 system. Uses NI-DAQmx API to detect devices, enumerate their properties, and

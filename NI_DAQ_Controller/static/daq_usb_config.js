@@ -81,14 +81,14 @@ window.DAQ_USB_CONFIG = {
             { ohm: '10K', relay: 'K86', net: 'POT_22', pin: 'J23-10', niLine: 'P11.3' },
             { ohm: '5K', relay: 'K87', net: 'POT_23', pin: 'J23-12', niLine: 'P11.2' },
             { ohm: '1K', relay: 'K88', net: 'POT_24', pin: 'J23-14', niLine: 'P11.1' },
-            { ohm: '1K*', relay: 'K89', net: 'POT_25', pin: 'J23-16', niLine: 'P11.0' },
+            { ohm: '470R', relay: 'K89', net: 'POT_25', pin: 'J23-16', niLine: 'P11.0' },
         ]},
         { channel: 6, title: 'Rx6+ / Rx6-', rows: [
             { ohm: '20K', relay: 'K90', net: 'POT_26', pin: 'J23-18', niLine: 'P10.7' },
             { ohm: '10K', relay: 'K91', net: 'POT_27', pin: 'J23-20', niLine: 'P10.6' },
             { ohm: '5K', relay: 'K92', net: 'POT_28', pin: 'J23-22', niLine: 'P10.5' },
             { ohm: '1K', relay: 'K93', net: 'POT_29', pin: 'J23-6', niLine: 'P11.5' },
-            { ohm: '1K*', relay: 'K94', net: 'POT_30', pin: 'J23-8', niLine: 'P11.4' },
+            { ohm: '470R', relay: 'K94', net: 'POT_30', pin: 'J23-8', niLine: 'P11.4' },
         ]},
     ],
     DI_DRY: [{

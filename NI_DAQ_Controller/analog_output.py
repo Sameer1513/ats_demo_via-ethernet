@@ -1,5 +1,5 @@
 """
-Analog Output module for NI DAQ Controller.
+Analog Output module for ATS Test System.
 
 Provides high-level operations for analog output including DC/AC signal
 generation with configurable waveforms. Supports voltage and current output
@@ -402,7 +402,7 @@ class AnalogOutputController:
         data = np.clip(data, clip_min, clip_max)
 
         success = self.task_manager.write_analog(
-            task_name, data, auto_start=False
+            task_name, data, auto_start=True
         )
 
         if not success:
@@ -412,17 +412,121 @@ class AnalogOutputController:
                 self._active_outputs.pop(task_name, None)
             return None
 
-        if not self.task_manager.start_task(task_name):
-            log.error("Failed to start AC waveform on %s", channel)
+        log.info(
+            "Started AC output: channel=%s, waveform=%s, "
+            "freq=%.1f Hz, amp=%.4f, samples=%d @ %.0f Hz",
+            channel, waveform.value, frequency, amplitude, num_samples, sample_rate
+        )
+
+        return task_name
+
+    def start_ac_output_multi(self,
+                              channels: List[str],
+                              waveform: WaveformType = WaveformType.SINE,
+                              frequency: float = 50.0,
+                              amplitude: float = 1.0,
+                              offset: float = 0.0,
+                              phase: float = 0.0,
+                              output_mode: OutputMode = OutputMode.VOLTAGE,
+                              voltage_min: float = -10.0,
+                              voltage_max: float = 10.0,
+                              current_min: float = 0.0,
+                              current_max: float = 0.02) -> Optional[str]:
+        """
+        Start continuous AC waveform output on multiple channels in one task.
+
+        cDAQ AO modules share a single sample clock, so all channels on the
+        same module must be driven from one DAQmx task for AC output.
+        """
+        if not channels:
+            log.error("No channels specified for multi-channel AC output")
+            return None
+
+        resolved_channels: List[str] = []
+        for channel in channels:
+            resolved = self._resolve_channel(channel)
+            if resolved is None:
+                log.error("Invalid AO channel: %s", channel)
+                return None
+            resolved_channels.append(resolved)
+
+        if len(resolved_channels) == 1:
+            return self.start_ac_output(
+                resolved_channels[0], waveform, frequency, amplitude, offset, phase,
+                output_mode, voltage_min, voltage_max, current_min, current_max,
+            )
+
+        if frequency <= 0:
+            log.error("Frequency must be positive: %.2f", frequency)
+            return None
+
+        if amplitude < 0:
+            log.error("Amplitude must not be negative: %.2f", amplitude)
+            return None
+
+        is_current = output_mode == OutputMode.CURRENT
+        clip_min, clip_max = (current_min, current_max) if is_current else (voltage_min, voltage_max)
+        num_samples = AC_WAVEFORM_SAMPLES
+        sample_rate = AC_SAMPLE_RATE
+
+        task_name = self.task_manager.create_ao_task(
+            device_name=self.device_name,
+            channels=resolved_channels,
+            sample_rate=sample_rate,
+            voltage_range=(voltage_min, voltage_max),
+            output_mode='current' if is_current else 'voltage',
+            current_range=(current_min, current_max),
+            num_samples=num_samples,
+            continuous=True,
+        )
+
+        if task_name is None:
+            return None
+
+        config = OutputConfig(
+            channel=resolved_channels[0],
+            signal_type=SignalType.AC,
+            output_mode=output_mode,
+            waveform=waveform,
+            frequency=frequency,
+            amplitude=amplitude,
+            offset=offset,
+            phase=phase,
+            duration=0.0,
+            voltage_min=voltage_min,
+            voltage_max=voltage_max
+        )
+
+        with self._lock:
+            self._active_outputs[task_name] = config
+
+        phase_rad = math.radians(phase)
+        waveform_data = self._generate_waveform(
+            waveform, num_samples, sample_rate,
+            frequency, amplitude, offset, phase_rad
+        )
+        waveform_data = np.clip(waveform_data, clip_min, clip_max)
+        data = np.tile(waveform_data, (len(resolved_channels), 1))
+
+        success = self.task_manager.write_analog(
+            task_name, data, auto_start=True
+        )
+
+        if not success:
+            log.error(
+                "Failed to write AC waveform to %d channels on %s",
+                len(resolved_channels), self.device_name
+            )
             self.task_manager.clear_task(task_name)
             with self._lock:
                 self._active_outputs.pop(task_name, None)
             return None
 
         log.info(
-            "Started AC output: channel=%s, waveform=%s, "
+            "Started multi-channel AC output: channels=%d, waveform=%s, "
             "freq=%.1f Hz, amp=%.4f, samples=%d @ %.0f Hz",
-            channel, waveform.value, frequency, amplitude, num_samples, sample_rate
+            len(resolved_channels), waveform.value, frequency, amplitude,
+            num_samples, sample_rate
         )
 
         return task_name

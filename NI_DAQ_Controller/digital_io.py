@@ -1,5 +1,5 @@
 """
-Digital I/O module for NI DAQ Controller.
+Digital I/O module for ATS Test System.
 
 Provides high-level operations for digital input, digital output,
 counter/timer operations, and relay control. Automatically detects

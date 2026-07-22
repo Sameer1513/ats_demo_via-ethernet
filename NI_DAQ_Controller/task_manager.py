@@ -1,5 +1,5 @@
 """
-Task Manager module for NI DAQ Controller.
+Task Manager module for ATS Test System.
 
 Manages NI-DAQmx tasks for analog input, analog output, and digital I/O operations.
 Provides a thread-safe interface for creating, starting, stopping, and managing
@@ -137,8 +137,20 @@ class TaskManager:
         self._data_callbacks: Dict[str, Callable] = {}
         self._background_threads: Dict[str, threading.Thread] = {}
         self._initialized = False
+        self._last_error: str = ""
 
         log.info("TaskManager initialized")
+
+    def get_last_error(self) -> str:
+        """Return the last NI-DAQmx error message, if any."""
+        return self._last_error
+
+    def clear_last_error(self) -> None:
+        """Clear the stored last error message."""
+        self._last_error = ""
+
+    def _set_last_error(self, message: str) -> None:
+        self._last_error = message or ""
 
     def _normalize_physical_channel(self, channel: Any) -> str:
         return normalize_physical_channel(channel)
@@ -350,6 +362,7 @@ class TaskManager:
 
         except Exception as e:
             log.error("Failed to create AO task: %s", e)
+            self._set_last_error(str(e))
             self._cleanup_task(task_name)
             return None
 
@@ -592,6 +605,7 @@ class TaskManager:
 
         except Exception as e:
             log.error("Failed to write to task '%s': %s", task_name, e)
+            self._set_last_error(str(e))
             self._update_task_state(task_name, TaskState.ERROR, str(e))
             return False
 
@@ -672,8 +686,10 @@ class TaskManager:
         if not self._check_nidaqmx():
             return False
 
+        raw_channel = channel
         channel = self._normalize_physical_channel(channel)
         if not channel:
+            self._set_last_error(f"Invalid DO channel: {raw_channel!r}")
             return False
 
         try:
@@ -685,6 +701,7 @@ class TaskManager:
             return True
         except Exception as e:
             log.error("Failed to write DO line %s = %s: %s", channel, value, e)
+            self._set_last_error(str(e))
             return False
 
     def read_di_line(self, channel: str) -> Optional[bool]:
@@ -696,8 +713,10 @@ class TaskManager:
         if not self._check_nidaqmx():
             return None
 
+        raw_channel = channel
         channel = self._normalize_physical_channel(channel)
         if not channel:
+            self._set_last_error(f"Invalid DI channel: {raw_channel!r}")
             return None
 
         try:
@@ -711,6 +730,7 @@ class TaskManager:
             return bool(data)
         except Exception as e:
             log.error("Failed to read DI line %s: %s", channel, e)
+            self._set_last_error(str(e))
             return None
 
     def read_do_line(self, channel: str) -> Optional[bool]:
@@ -722,8 +742,10 @@ class TaskManager:
         if not self._check_nidaqmx():
             return None
 
+        raw_channel = channel
         channel = self._normalize_physical_channel(channel)
         if not channel:
+            self._set_last_error(f"Invalid DO channel: {raw_channel!r}")
             return None
 
         try:
@@ -737,6 +759,7 @@ class TaskManager:
             return bool(data)
         except Exception as e:
             log.error("Failed to read DO line %s: %s", channel, e)
+            self._set_last_error(str(e))
             return None
 
     def start_task(self, task_name: str) -> bool:
@@ -837,6 +860,41 @@ class TaskManager:
             except Exception as e:
                 log.error("Failed to clear task '%s': %s", task_name, e)
                 return False
+
+    def clear_tasks_for_device(self, device_name: str) -> int:
+        """Stop and clear all tasks bound to one NI-DAQmx device/module name."""
+        with self._lock:
+            names = [
+                info.name for info in self._tasks.values()
+                if info.device_name == device_name
+            ]
+        cleared = 0
+        for name in names:
+            if self.clear_task(name):
+                cleared += 1
+        if cleared:
+            log.info("Cleared %d task(s) for device '%s'", cleared, device_name)
+        return cleared
+
+    def clear_ao_tasks_for_channel(self, device_name: str, channel: str) -> int:
+        """Stop and clear AO tasks for one channel on one module only."""
+        with self._lock:
+            names = [
+                info.name for info in self._tasks.values()
+                if info.device_name == device_name
+                and info.task_type == TaskType.ANALOG_OUTPUT
+                and channel in info.channels
+            ]
+        cleared = 0
+        for name in names:
+            if self.clear_task(name):
+                cleared += 1
+        if cleared:
+            log.info(
+                "Cleared %d AO task(s) for %s on '%s'",
+                cleared, channel, device_name,
+            )
+        return cleared
 
     def start_background_acquisition(self,
                                       task_name: str,

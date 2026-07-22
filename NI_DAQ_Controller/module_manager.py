@@ -1,5 +1,5 @@
 """
-Module Manager for NI DAQ Controller.
+Module Manager for ATS Test System.
 
 Creates dynamic UI controls for each detected module based on its
 capabilities. Handles the creation of collapsible sections for AI, AO,

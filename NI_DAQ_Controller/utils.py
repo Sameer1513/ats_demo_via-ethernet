@@ -1,5 +1,5 @@
 """
-Utility functions for NI DAQ Controller.
+Utility functions for ATS Test System.
 
 Provides helper functions for data conversion, string formatting,
 channel parsing, and other common operations used across the application.

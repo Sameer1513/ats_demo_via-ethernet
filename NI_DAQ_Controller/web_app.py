@@ -1,7 +1,7 @@
 """
-NI DAQ Controller - Web Application Server
+ATS Test System - Web Application Server
 
-A Flask-based web interface for the NI DAQ Controller that exposes
+A Flask-based web interface for the ATS Test System that exposes
 all functionality through a REST API and serves a browser-based UI.
 
 Run this to access the controller via localhost in your browser.
@@ -57,8 +57,9 @@ device_manager = DeviceManager()
 # Active task tracking
 _active_ai_tasks: dict = {}
 _active_ao_tasks: dict = {}
-_dio_controllers: dict = {}
-_dio_controllers: dict = {}
+_ao_controllers: dict = {}
+_ao_module_locks: dict = {}
+_ao_locks_guard = threading.Lock()
 _dio_controllers: dict = {}
 
 
@@ -90,6 +91,53 @@ def add_log(message: str, level: str = 'INFO') -> None:
     getattr(log, level.lower(), log.info)(message)
 
 
+def _parse_json():
+    """Return (data dict, error_response) — error_response is set on bad JSON."""
+    data = request.get_json(silent=True)
+    if data is None:
+        return None, (jsonify({'error': 'Invalid or missing JSON body'}), 400)
+    return data, None
+
+
+def _require_indices(data: dict):
+    """Return (device_idx, module_idx, error_response) from request data."""
+    if 'device_idx' not in data or 'module_idx' not in data:
+        return None, None, (jsonify({'error': 'device_idx and module_idx are required'}), 400)
+    try:
+        return int(data['device_idx']), int(data['module_idx']), None
+    except (TypeError, ValueError):
+        return None, None, (jsonify({'error': 'device_idx and module_idx must be integers'}), 400)
+
+
+def _ni_error_detail(fallback: str) -> str:
+    """Append the last NI-DAQmx error to a user-facing message."""
+    ni_err = (task_manager.get_last_error() or '').strip()
+    if ni_err and ni_err not in fallback:
+        return f"{fallback} ({ni_err})"
+    return fallback or ni_err or 'Operation failed'
+
+
+def _api_error(endpoint: str, exc: Exception, *, di=None, mi=None, channel=None) -> tuple:
+    """Log, record in UI log, and return a JSON 500 response."""
+    log.exception(
+        "%s failed device_idx=%s module_idx=%s channel=%s",
+        endpoint, di, mi, channel,
+    )
+    msg = _ni_error_detail(str(exc))
+    add_log(f"{endpoint}: {msg}", 'ERROR')
+    return jsonify({'error': msg}), 500
+
+
+def stop_all_ai_tasks() -> None:
+    """Stop all continuous analog-input background tasks."""
+    for task_key, info in list(_active_ai_tasks.items()):
+        try:
+            info['controller'].stop_acquisition(info['task_name'])
+        except Exception as e:
+            log.warning("Failed to stop AI task %s: %s", task_key, e)
+    _active_ai_tasks.clear()
+
+
 def get_controller(device_idx: int, module_idx: int):
     """Get a device and module by index from the discovered list."""
     devices = device_manager.get_all_devices()
@@ -111,11 +159,77 @@ def get_dio_controller(device_idx: int, module_idx: int, module):
     return _dio_controllers[key]
 
 
+def get_ao_controller(device_idx: int, module_idx: int, module):
+    """Reuse AnalogOutputController per module so AO tasks can be stopped."""
+    key = f"{device_idx}_{module_idx}"
+    if key not in _ao_controllers:
+        _ao_controllers[key] = AnalogOutputController(task_manager, module)
+    return _ao_controllers[key]
+
+
+def _ao_module_lock(device_idx: int, module_idx: int) -> threading.Lock:
+    key = f"{device_idx}_{module_idx}"
+    with _ao_locks_guard:
+        if key not in _ao_module_locks:
+            _ao_module_locks[key] = threading.Lock()
+        return _ao_module_locks[key]
+
+
+def release_module_ao(device_idx: int, module_idx: int, module) -> None:
+    """Stop tracked AO tasks and clear NI-DAQmx tasks on one module."""
+    controller = get_ao_controller(device_idx, module_idx, module)
+    controller.stop_all_outputs()
+    prefix = f"ao_{device_idx}_{module_idx}_"
+    for task_key in list(_active_ao_tasks.keys()):
+        if task_key.startswith(prefix):
+            del _active_ao_tasks[task_key]
+    task_manager.clear_tasks_for_device(module.name)
+
+
+def _ao_error_message() -> str:
+    return task_manager.get_last_error() or 'Failed to start output'
+
+
+def _clear_ao_channel_tasks(module_name: str, channel: str) -> None:
+    """Release only AO tasks for one channel on one module."""
+    task_manager.clear_ao_tasks_for_channel(module_name, channel)
+
+
+def _remove_ao_task_refs(task_name: str) -> None:
+    """Remove all tracked AO channel keys that reference the same task."""
+    for task_key in list(_active_ao_tasks.keys()):
+        if _active_ao_tasks.get(task_key) == task_name:
+            del _active_ao_tasks[task_key]
+
+
+def _stop_ao_tasks_for_channels(device_idx: int, module_idx: int, module,
+                                controller, channel_list: list) -> None:
+    """Stop AO tasks that touch any of the given channels."""
+    task_names = set()
+    for channel in channel_list:
+        resolved = controller._resolve_channel(channel)
+        if not resolved:
+            continue
+        task_key = _ao_task_key(device_idx, module_idx, resolved)
+        if task_key in _active_ao_tasks:
+            task_names.add(_active_ao_tasks[task_key])
+        task_manager.clear_ao_tasks_for_channel(module.name, resolved)
+
+    for task_name in task_names:
+        controller.stop_output(task_name)
+        _remove_ao_task_refs(task_name)
+
+
 def reset_all_dio_controllers() -> None:
     """Release digital I/O tasks and cached state (call on device refresh)."""
+    stop_all_ai_tasks()
     for controller in list(_dio_controllers.values()):
         controller.cleanup()
     _dio_controllers.clear()
+    for controller in list(_ao_controllers.values()):
+        controller.stop_all_outputs()
+    _ao_controllers.clear()
+    _active_ao_tasks.clear()
 
 
 def _build_device_details(devices) -> list:
@@ -209,6 +323,17 @@ def _device_api_payload(devices, *, scanned: bool) -> dict:
 
 # ===================== API Routes =====================
 
+@app.errorhandler(Exception)
+def handle_unhandled_exception(e):
+    """Log unexpected errors; pass HTTP exceptions through to Flask."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    log.exception("Unhandled server error")
+    add_log(f"Unhandled error: {e}", 'ERROR')
+    return jsonify({'error': str(e)}), 500
+
+
 @app.route('/')
 def index():
     """Serve the main web interface."""
@@ -230,7 +355,8 @@ def api_devices():
 
         return jsonify(_device_api_payload(devices, scanned=refresh))
     except Exception as e:
-        log.error("Device API error: %s", e)
+        log.exception("Device API error")
+        add_log(f"Device API error: {e}", 'ERROR')
         return jsonify({'error': str(e), 'devices': [], 'log': _log_entries[-10:]})
 
 
@@ -267,7 +393,7 @@ def api_add_network_device():
             **_device_api_payload(devices, scanned=True),
         })
     except Exception as e:
-        log.error("Add network device error: %s", e)
+        log.exception("Add network device error")
         add_log(f"Failed to add network device: {e}", 'ERROR')
         return jsonify({'error': str(e)}), 400
 
@@ -275,12 +401,17 @@ def api_add_network_device():
 @app.route('/api/ai/read', methods=['POST'])
 def api_ai_read():
     """API: Read analog input (single shot)."""
+    di = mi = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
         channels = data.get('channels', [])
-        rate = data.get('rate', 1000.0)
-        samples = data.get('samples', 10)
+        rate = float(data.get('rate', 1000.0))
+        samples = int(data.get('samples', 10))
         
         device, module, error = get_controller(di, mi)
         if error:
@@ -289,7 +420,9 @@ def api_ai_read():
         controller = AnalogInputController(task_manager, module)
         task_name = controller.start_single_acquisition(channels, rate, samples)
         if not task_name:
-            return jsonify({'error': 'Failed to start acquisition'}), 500
+            err_msg = _ni_error_detail('Failed to start acquisition')
+            add_log(f"AI read failed: {err_msg}", 'ERROR')
+            return jsonify({'error': err_msg}), 500
         
         task_manager.start_task(task_name)
         result = controller.read_data(task_name)
@@ -299,25 +432,33 @@ def api_ai_read():
             values = []
             for ch, ch_data in result.data.items():
                 if len(ch_data) > 0:
-                    values.append(f"{ch}: {ch_data[-1]:.4f} V")
+                    values.append(f"{ch_data[-1]:.4f} V")
             add_log(f"AI read: {device.name}/{module.name} channels={channels}")
             return jsonify({'values': values, 'success': True})
         
-        return jsonify({'error': 'No data returned'}), 500
+        err_msg = _ni_error_detail('No data returned')
+        add_log(f"AI read failed: {err_msg}", 'ERROR')
+        return jsonify({'error': err_msg}), 500
+    except (TypeError, ValueError) as e:
+        return jsonify({'error': f'Invalid request: {e}'}), 400
     except Exception as e:
-        log.error("AI read error: %s", e)
-        return jsonify({'error': str(e)}), 500
+        return _api_error('AI read', e, di=di, mi=mi)
 
 
 @app.route('/api/ai/start', methods=['POST'])
 def api_ai_start():
     """API: Start continuous analog input acquisition."""
+    di = mi = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
         channels = data.get('channels', [])
-        rate = data.get('rate', 1000.0)
-        samples = data.get('samples', 100)
+        rate = float(data.get('rate', 1000.0))
+        samples = int(data.get('samples', 100))
         
         device, module, error = get_controller(di, mi)
         if error:
@@ -333,13 +474,18 @@ def api_ai_start():
         
         def data_callback(result):
             """Callback for continuous acquisition updates."""
-            if result.success:
+            try:
+                if not result.success:
+                    return
+                if task_key not in _active_ai_tasks:
+                    return
                 values = []
                 for ch, ch_data in result.data.items():
                     if len(ch_data) > 0:
-                        values.append(f"{ch}: {ch_data[-1]:.4f} V")
-                # Store latest values for polling
+                        values.append(f"{ch_data[-1]:.4f} V")
                 _active_ai_tasks[task_key]['latest'] = values
+            except Exception as cb_e:
+                log.error("AI data callback error: %s", cb_e)
         
         task_name = controller.start_continuous_acquisition(
             channels, rate, samples, data_callback=data_callback
@@ -355,42 +501,57 @@ def api_ai_start():
             add_log(f"Continuous AI started: {device.name}/{module.name}")
             return jsonify({'task_name': task_name, 'success': True})
         
-        return jsonify({'error': 'Failed to start'}), 500
+        err_msg = _ni_error_detail('Failed to start continuous acquisition')
+        add_log(f"AI start failed: {err_msg}", 'ERROR')
+        return jsonify({'error': err_msg}), 500
+    except (TypeError, ValueError) as e:
+        return jsonify({'error': f'Invalid request: {e}'}), 400
     except Exception as e:
-        log.error("AI start error: %s", e)
-        return jsonify({'error': str(e)}), 500
+        return _api_error('AI start', e, di=di, mi=mi)
 
 
 @app.route('/api/ai/stop', methods=['POST'])
 def api_ai_stop():
     """API: Stop continuous analog input acquisition."""
+    di = mi = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
         task_key = f"{di}_{mi}"
         
         if task_key in _active_ai_tasks:
             info = _active_ai_tasks.pop(task_key)
             info['controller'].stop_acquisition(info['task_name'])
-            add_log(f"Continuous AI stopped")
+            add_log("Continuous AI stopped")
             return jsonify({'success': True})
         
         return jsonify({'success': True, 'message': 'No active task'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('AI stop', e, di=di, mi=mi)
 
 
 @app.route('/api/ao/start', methods=['POST'])
 def api_ao_start():
     """API: Start analog output."""
+    di = mi = channel = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
-        channel = data['channel']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channel = data.get('channel')
+        if not channel:
+            return jsonify({'error': 'channel is required'}), 400
         signal = data.get('signal', 'DC')
         value_mode = data.get('value_mode', 'direct')
         value = data.get('value', 1.0)
-        frequency = data.get('frequency', 50.0)
+        frequency = float(data.get('frequency', 50.0))
         waveform = data.get('waveform', 'Sine')
         amplitude = data.get('amplitude', 1.0)
 
@@ -398,115 +559,299 @@ def api_ao_start():
         if error:
             return jsonify({'error': error}), 400
 
-        controller = AnalogOutputController(task_manager, module)
-        is_current = '9266' in (module.product_type or '').upper()
-        output_mode = OutputMode.CURRENT if is_current else OutputMode.VOLTAGE
-        wf_type = WaveformType(waveform)
+        try:
+            wf_type = WaveformType(waveform)
+        except ValueError:
+            return jsonify({'error': f'Invalid waveform: {waveform}'}), 400
 
-        if signal == 'DC':
-            value = convert_to_output_level(
-                float(value), SignalType.DC, value_mode, wf_type
-            )
-            applied_display = float(value)
-        else:
-            amplitude = convert_to_output_level(
-                float(amplitude), SignalType.AC, value_mode, wf_type
-            )
-            applied_display = float(amplitude)
+        with _ao_module_lock(di, mi):
+            task_manager.clear_last_error()
+            controller = get_ao_controller(di, mi, module)
+            resolved = controller._resolve_channel(channel)
+            if not resolved:
+                return jsonify({'error': f'Invalid AO channel: {channel}'}), 400
+            channel = resolved
+            is_current = '9266' in (module.product_type or '').upper()
+            output_mode = OutputMode.CURRENT if is_current else OutputMode.VOLTAGE
 
-        if is_current:
-            value = value / 1000.0
-            amplitude = amplitude / 1000.0
-            applied_display *= 1000.0
-
-        display_unit = 'mA' if is_current else 'V'
-        applied_out = round(applied_display, 4)
-
-        task_key = _ao_task_key(di, mi, channel)
-        if signal == 'DC' and task_key in _active_ao_tasks:
-            task_name = _active_ao_tasks[task_key]
-            if controller.update_dc_value(task_name, value):
-                add_log(
-                    f"AO updated: {device.name}/{module.name} DC channel={channel} "
-                    f"value={applied_out} {display_unit}"
+            if signal == 'DC':
+                value = convert_to_output_level(
+                    float(value), SignalType.DC, value_mode, wf_type
                 )
+                applied_display = float(value)
+            else:
+                amplitude = convert_to_output_level(
+                    float(amplitude), SignalType.AC, value_mode, wf_type
+                )
+                applied_display = float(amplitude)
+
+            if is_current:
+                value = value / 1000.0
+                amplitude = amplitude / 1000.0
+                applied_display = round(applied_display, 4)
+
+            display_unit = 'mA' if is_current else 'V'
+            applied_out = round(applied_display, 4)
+
+            task_key = _ao_task_key(di, mi, channel)
+            if signal == 'DC' and task_key in _active_ao_tasks:
+                task_name = _active_ao_tasks[task_key]
+                if controller.update_dc_value(task_name, value):
+                    add_log(
+                        f"AO updated: {device.name}/{module.name} DC channel={channel} "
+                        f"value={applied_out} {display_unit}"
+                    )
+                    return jsonify({
+                        'task_name': task_name,
+                        'success': True,
+                        'updated': True,
+                        'applied_value': applied_out,
+                        'unit': display_unit,
+                        'value_mode': value_mode,
+                    })
+
+            if task_key in _active_ao_tasks:
+                controller.stop_output(_active_ao_tasks[task_key])
+                _remove_ao_task_refs(_active_ao_tasks[task_key])
+
+            _clear_ao_channel_tasks(module.name, channel)
+
+            if signal == 'DC':
+                task_name = controller.start_dc_output(
+                    channel, value, output_mode=output_mode
+                )
+            else:
+                task_name = controller.start_ac_output(
+                    channel, wf_type, frequency, amplitude, output_mode=output_mode
+                )
+
+            if task_name:
+                _active_ao_tasks[task_key] = task_name
+                add_log(f"AO started: {device.name}/{module.name} {signal} channel={channel}")
                 return jsonify({
                     'task_name': task_name,
                     'success': True,
-                    'updated': True,
+                    'value_mode': value_mode,
                     'applied_value': applied_out,
                     'unit': display_unit,
-                    'value_mode': value_mode,
                 })
 
-        if task_key in _active_ao_tasks:
-            controller.stop_output(_active_ao_tasks[task_key])
+            err_msg = _ao_error_message()
+            add_log(f"AO start failed: {err_msg}", 'ERROR')
+            return jsonify({'error': err_msg}), 500
+    except (TypeError, ValueError) as e:
+        return jsonify({'error': f'Invalid request: {e}'}), 400
+    except Exception as e:
+        return _api_error('AO start', e, di=di, mi=mi, channel=channel)
 
-        if signal == 'DC':
-            task_name = controller.start_dc_output(
-                channel, value, output_mode=output_mode
-            )
+
+@app.route('/api/ao/write-config-module', methods=['POST'])
+def api_ao_write_config_module():
+    """API: Write the same signal configuration to selected analog output channels."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        signal = data.get('signal', 'DC')
+        value_mode = data.get('value_mode', 'direct')
+        value = data.get('value', 1.0)
+        frequency = float(data.get('frequency', 50.0))
+        waveform = data.get('waveform', 'Sine')
+        amplitude = data.get('amplitude', 1.0)
+        requested_channels = data.get('channels')
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        try:
+            wf_type = WaveformType(waveform)
+        except ValueError:
+            return jsonify({'error': f'Invalid waveform: {waveform}'}), 400
+
+        if not module.ao_channels:
+            return jsonify({'error': 'No analog output channels on this module'}), 400
+
+        if requested_channels is not None:
+            if not isinstance(requested_channels, list):
+                return jsonify({'error': 'channels must be a list'}), 400
+            if not requested_channels:
+                return jsonify({'error': 'Select at least one channel'}), 400
+            module_channel_set = set(module.ao_channels)
+            target_channels = [
+                ch for ch in requested_channels if ch in module_channel_set
+            ]
+            if not target_channels:
+                return jsonify({'error': 'No valid channels selected'}), 400
         else:
-            task_name = controller.start_ac_output(
-                channel, wf_type, frequency, amplitude, output_mode=output_mode
-            )
+            target_channels = list(module.ao_channels)
 
-        if task_name:
-            _active_ao_tasks[task_key] = task_name
-            add_log(f"AO started: {device.name}/{module.name} {signal} channel={channel}")
+        with _ao_module_lock(di, mi):
+            task_manager.clear_last_error()
+            controller = get_ao_controller(di, mi, module)
+            is_current = '9266' in (module.product_type or '').upper()
+            output_mode = OutputMode.CURRENT if is_current else OutputMode.VOLTAGE
+            display_unit = 'mA' if is_current else 'V'
+
+            _stop_ao_tasks_for_channels(di, mi, module, controller, target_channels)
+
+            results = []
+            applied_out = None
+
+            if signal == 'AC':
+                amplitude_val = convert_to_output_level(
+                    float(amplitude), SignalType.AC, value_mode, wf_type
+                )
+                applied_display = float(amplitude_val)
+                actual_amplitude = amplitude_val / 1000.0 if is_current else amplitude_val
+                if is_current:
+                    applied_display = round(applied_display, 4)
+                applied_out = round(applied_display, 4)
+
+                channel_pairs = []
+                for channel in target_channels:
+                    resolved = controller._resolve_channel(channel)
+                    if resolved:
+                        channel_pairs.append((channel, resolved))
+                    else:
+                        results.append({'channel': channel, 'success': False, 'error': 'Invalid channel'})
+
+                if channel_pairs:
+                    resolved_channels = [resolved for _, resolved in channel_pairs]
+                    task_name = controller.start_ac_output_multi(
+                        resolved_channels, wf_type, frequency, actual_amplitude,
+                        output_mode=output_mode
+                    )
+                    if task_name:
+                        for channel, resolved in channel_pairs:
+                            task_key = _ao_task_key(di, mi, resolved)
+                            _active_ao_tasks[task_key] = task_name
+                            results.append({
+                                'channel': channel,
+                                'success': True,
+                                'applied_value': applied_out,
+                            })
+                    else:
+                        err = _ao_error_message()
+                        for channel, _ in channel_pairs:
+                            results.append({
+                                'channel': channel,
+                                'success': False,
+                                'error': err or 'Failed to start output',
+                            })
+            else:
+                for channel in target_channels:
+                    try:
+                        resolved = controller._resolve_channel(channel)
+                        if not resolved:
+                            results.append({'channel': channel, 'success': False, 'error': 'Invalid channel'})
+                            continue
+
+                        output_value = convert_to_output_level(
+                            float(value), SignalType.DC, value_mode, wf_type
+                        )
+                        applied_display = float(output_value)
+
+                        if is_current:
+                            actual_value = output_value / 1000.0
+                            applied_display = round(applied_display, 4)
+                        else:
+                            actual_value = output_value
+
+                        applied_out = round(applied_display, 4)
+
+                        _clear_ao_channel_tasks(module.name, resolved)
+
+                        task_name = controller.start_dc_output(
+                            resolved, actual_value, output_mode=output_mode
+                        )
+
+                        if task_name:
+                            task_key = _ao_task_key(di, mi, resolved)
+                            _active_ao_tasks[task_key] = task_name
+                            results.append({'channel': channel, 'success': True, 'applied_value': applied_out})
+                        else:
+                            results.append({'channel': channel, 'success': False, 'error': 'Failed to start output'})
+                    except Exception as ch_e:
+                        results.append({'channel': channel, 'success': False, 'error': str(ch_e)})
+
+            success_count = sum(1 for r in results if r['success'])
+            add_log(
+                f"AO write-config module={module.name} {signal}: "
+                f"{success_count}/{len(results)} channel(s) written"
+            )
             return jsonify({
-                'task_name': task_name,
-                'success': True,
-                'value_mode': value_mode,
-                'applied_value': applied_out,
+                'success': success_count > 0,
+                'results': results,
+                'signal': signal,
+                'applied_value': round(applied_out, 4) if results else None,
                 'unit': display_unit,
             })
 
-        return jsonify({'error': 'Failed to start output'}), 500
+    except (TypeError, ValueError) as e:
+        return jsonify({'error': f'Invalid request: {e}'}), 400
     except Exception as e:
-        log.error("AO start error: %s", e)
-        return jsonify({'error': str(e)}), 500
+        return _api_error('AO write-config-module', e, di=di, mi=mi)
 
 
 @app.route('/api/ao/stop', methods=['POST'])
 def api_ao_stop():
     """API: Stop analog output."""
+    di = mi = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
         channel = data.get('channel')
 
         device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
 
-        controller = AnalogOutputController(task_manager, module)
-        if channel:
-            task_key = _ao_task_key(di, mi, channel)
-            if task_key in _active_ao_tasks:
-                controller.stop_output(_active_ao_tasks[task_key])
-                del _active_ao_tasks[task_key]
-                add_log(f"AO stopped: {channel}")
-        else:
-            prefix = f"ao_{di}_{mi}_"
-            for task_key in list(_active_ao_tasks.keys()):
-                if task_key.startswith(prefix):
-                    controller.stop_output(_active_ao_tasks[task_key])
-                    del _active_ao_tasks[task_key]
-            add_log("AO stopped (all channels on module)")
+        controller = get_ao_controller(di, mi, module)
+        with _ao_module_lock(di, mi):
+            if channel:
+                task_key = _ao_task_key(di, mi, channel)
+                if task_key in _active_ao_tasks:
+                    task_name = _active_ao_tasks[task_key]
+                    controller.stop_output(task_name)
+                    _remove_ao_task_refs(task_name)
+                    add_log(f"AO stopped: {channel}")
+            else:
+                prefix = f"ao_{di}_{mi}_"
+                for task_key in list(_active_ao_tasks.keys()):
+                    if task_key.startswith(prefix):
+                        controller.stop_output(_active_ao_tasks[task_key])
+                        del _active_ao_tasks[task_key]
+                task_manager.clear_tasks_for_device(module.name)
+                add_log("AO stopped (all channels on module)")
 
         return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('AO stop', e, di=di, mi=mi)
 
 
 @app.route('/api/do/write', methods=['POST'])
 def api_do_write():
     """API: Set digital output to true or false."""
+    di = mi = channel = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
-        channel = data['channel']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channel = data.get('channel')
+        if not channel:
+            return jsonify({'error': 'channel is required'}), 400
         state = bool(data.get('state', False))
 
         device, module, error = get_controller(di, mi)
@@ -519,24 +864,32 @@ def api_do_write():
             return jsonify({'state': state, 'success': True})
 
         failed = controller.get_last_failed_ports()
-        err = (
+        err = _ni_error_detail(
             'Digital write failed. In NI MAX, set the port direction to '
             'Output for lines you want to drive.'
         )
         if failed:
             err += f' Failed port(s): {failed}.'
+        add_log(f"DO write failed: {channel} — {err}", 'ERROR')
         return jsonify({'error': err, 'failed_ports': failed}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO write', e, di=di, mi=mi, channel=channel)
 
 
 @app.route('/api/do/read', methods=['POST'])
 def api_do_read():
     """API: Read one digital output / relay line from hardware."""
+    di = mi = channel = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
-        channel = data['channel']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channel = data.get('channel')
+        if not channel:
+            return jsonify({'error': 'channel is required'}), 400
 
         device, module, error = get_controller(di, mi)
         if error:
@@ -545,21 +898,30 @@ def api_do_read():
         controller = get_dio_controller(di, mi, module)
         state = controller.read_output_line(channel)
         if state is None:
-            return jsonify({'error': 'Digital output read failed'}), 500
+            err_msg = _ni_error_detail('Digital output read failed')
+            add_log(f"DO read failed: {channel} — {err_msg}", 'ERROR')
+            return jsonify({'error': err_msg}), 500
 
         add_log(f"DO read: {channel} -> {state}")
         return jsonify({'state': state, 'success': True})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO read', e, di=di, mi=mi, channel=channel)
 
 
 @app.route('/api/di/read', methods=['POST'])
 def api_di_read():
     """API: Read one digital input line."""
+    di = mi = channel = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
-        channel = data['channel']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channel = data.get('channel')
+        if not channel:
+            return jsonify({'error': 'channel is required'}), 400
 
         device, module, error = get_controller(di, mi)
         if error:
@@ -568,21 +930,28 @@ def api_di_read():
         controller = get_dio_controller(di, mi, module)
         values = controller.read_digital_input([channel])
         if not values or channel not in values:
-            return jsonify({'error': 'Digital read failed'}), 500
+            err_msg = _ni_error_detail('Digital read failed')
+            add_log(f"DI read failed: {channel} — {err_msg}", 'ERROR')
+            return jsonify({'error': err_msg}), 500
 
         state = bool(values[channel])
         add_log(f"DI read: {channel} -> {state}")
         return jsonify({'state': state, 'success': True})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DI read', e, di=di, mi=mi, channel=channel)
 
 
 @app.route('/api/do/write-module', methods=['POST'])
 def api_do_write_module():
     """API: Write all digital lines on one module to the same state."""
+    di = mi = None
     try:
-        data = request.json or {}
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
 
         device, module, error = get_controller(di, mi)
         if error:
@@ -613,24 +982,33 @@ def api_do_write_module():
             return jsonify(payload)
 
         failed_ports = controller.get_last_failed_ports()
+        err_msg = _ni_error_detail(
+            'Digital write-all failed. In NI MAX, set port direction to '
+            'Output for lines you want to drive.'
+        )
+        add_log(f"DO write-all failed on {module.name}: {err_msg}", 'ERROR')
         return jsonify({
-            'error': (
-                'Digital write-all failed. In NI MAX, set port direction to '
-                'Output for lines you want to drive.'
-            ),
+            'error': err_msg,
             'failed_ports': failed_ports,
         }), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO write-module', e, di=di, mi=mi)
 
 
 @app.route('/api/do/toggle', methods=['POST'])
 def api_do_toggle():
     """API: Toggle digital output."""
+    di = mi = channel = None
     try:
-        data = request.json
-        di, mi = data['device_idx'], data['module_idx']
-        channel = data['channel']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channel = data.get('channel')
+        if not channel:
+            return jsonify({'error': 'channel is required'}), 400
         
         device, module, error = get_controller(di, mi)
         if error:
@@ -643,18 +1021,26 @@ def api_do_toggle():
             add_log(f"DO toggle: {channel} -> {'HIGH' if state else 'LOW'}")
             return jsonify({'state': state, 'success': True})
         
-        return jsonify({'error': 'Toggle failed'}), 500
+        err_msg = _ni_error_detail('Toggle failed')
+        add_log(f"DO toggle failed: {channel} — {err_msg}", 'ERROR')
+        return jsonify({'error': err_msg}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO toggle', e, di=di, mi=mi, channel=channel)
 
 
 @app.route('/api/do/test-line', methods=['POST'])
 def api_do_test_line():
     """API: Test one digital line (True then False)."""
+    di = mi = None
     try:
-        data = request.json or {}
-        di, mi = data['device_idx'], data['module_idx']
-        port, line = int(data['port']), int(data['line'])
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        port = int(data['port'])
+        line = int(data['line'])
 
         device, module, error = get_controller(di, mi)
         if error:
@@ -667,16 +1053,23 @@ def api_do_test_line():
         result = controller.test_one_line(port, line)
         add_log(f"Line test P{port}.{line} on {module.name}: {'OK' if result.get('ok') else 'FAIL'}")
         return jsonify({'success': True, **result})
+    except (TypeError, ValueError, KeyError) as e:
+        return jsonify({'error': f'Invalid request: {e}'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO test-line', e, di=di, mi=mi)
 
 
 @app.route('/api/do/test-ports', methods=['POST'])
 def api_do_test_ports():
     """API: Test each digital line sequentially (batch; use test-line for live UI)."""
+    di = mi = None
     try:
-        data = request.json or {}
-        di, mi = data['device_idx'], data['module_idx']
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
 
         device, module, error = get_controller(di, mi)
         if error:
@@ -711,7 +1104,7 @@ def api_do_test_ports():
             'summary': f'{ok_lines}/{len(line_results)} lines OK, {ok_ports}/{len(port_results)} ports OK',
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return _api_error('DO test-ports', e, di=di, mi=mi)
 
 
 @app.route('/api/log')
@@ -743,20 +1136,20 @@ _start_time = time.time()
 
 
 def main() -> None:
-    """Start the NI DAQ Controller web server."""
+    """Start the ATS Test System web server."""
     import logging
     # Flask's built-in server is for local/dev use only — suppress the banner noise.
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
     print()
     print("=" * 60)
-    print("  NI DAQ Controller - Web Interface")
+    print("  ATS Test System - Web Interface")
     print("=" * 60)
     print()
     print("  Starting server...")
     print()
 
-    add_log("Starting NI DAQ Controller web server...")
+    add_log("Starting ATS Test System web server...")
     devices = device_manager.discover_devices()
     add_log(f"Detected {len(devices)} device(s)")
 
@@ -785,7 +1178,7 @@ if __name__ == '__main__':
     main()
 else:
     # When imported, do initial discovery
-    add_log("NI DAQ Controller module loaded")
+    add_log("ATS Test System module loaded")
     try:
         device_manager.discover_devices()
     except Exception as e:

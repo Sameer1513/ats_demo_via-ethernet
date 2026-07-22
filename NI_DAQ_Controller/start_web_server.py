@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Universal launcher for NI DAQ Controller Web Server.
+Universal launcher for ATS Test System Web Server.
 Works from any directory - just run: python start_web_server.py
 """
 import sys
