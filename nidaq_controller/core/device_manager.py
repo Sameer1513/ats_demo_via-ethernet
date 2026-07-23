@@ -29,6 +29,12 @@ from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from app_logging.logger import get_logger
+from constants import (
+    NI_DAQMX_PROBE_TIMEOUT,
+    NI_DAQMX_DISCOVERY_PORT,
+    ETHERNET_HOST_REACHABLE_TIMEOUT,
+    NETWORK_DEVICE_ADD_TIMEOUT,
+)
 
 log = get_logger(__name__)
 
@@ -291,7 +297,7 @@ class DeviceManager:
                 if ai:
                     task.ai_channels.add_ai_voltage_chan(ai[0].name)
                     task.start()
-                    task.read(number_of_samples_per_channel=1, timeout=2.0)
+                    task.read(number_of_samples_per_channel=1, timeout=NI_DAQMX_PROBE_TIMEOUT)
                     task.stop()
                     return True
 
@@ -372,7 +378,7 @@ class DeviceManager:
             return cached
         reachable = False
         try:
-            with socket.create_connection((host, 3580), timeout=1.5):
+            with socket.create_connection((host, NI_DAQMX_DISCOVERY_PORT), timeout=ETHERNET_HOST_REACHABLE_TIMEOUT):
                 reachable = True
         except Exception:
             pass
@@ -1141,7 +1147,7 @@ class DeviceManager:
                            ip_or_hostname: str,
                            device_name: str = '',
                            attempt_reservation: bool = True,
-                           timeout: float = 10.0) -> str:
+                           timeout: float = NETWORK_DEVICE_ADD_TIMEOUT) -> str:
         """
         Register an Ethernet cDAQ chassis with NI-DAQmx (user-initiated).
 

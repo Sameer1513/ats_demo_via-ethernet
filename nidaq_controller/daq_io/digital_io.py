@@ -30,7 +30,7 @@ from typing import List, Optional, Tuple, Dict, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from app_logging.logger import get_logger
-from core.task_manager import TaskManager, channel_on_port
+from core.task_manager import TaskManager, TaskState, channel_on_port
 from core.device_manager import ModuleInfo
 
 log = get_logger(__name__)
@@ -473,7 +473,7 @@ class DigitalIOController:
         return None
 
     def test_one_line(self, port: int, line: int) -> Dict[str, Any]:
-        """Test a single DO line (True then False)."""
+        """Test a single DO line (True then False), holding the lock across both writes."""
         ch = self._channel_for_port_line(port, line)
         if not ch:
             return {
@@ -485,11 +485,12 @@ class DigitalIOController:
                 'ni_line': f"P{port}.{line}",
                 'message': 'Channel not found',
             }
-        ok_true = self.write_digital_output({ch: True})
-        failed = set(self.get_last_failed_ports())
-        ok_false = self.write_digital_output({ch: False})
-        failed |= set(self.get_last_failed_ports())
-        ok = ok_true and ok_false and port not in failed
+        with self._lock:
+            ok_true = self._write_digital_output_unlocked({ch: True})
+            failed = set(self._last_failed_ports)
+            ok_false = self._write_digital_output_unlocked({ch: False})
+            failed |= set(self._last_failed_ports)
+            ok = ok_true and ok_false and port not in failed
         return {
             'ok': ok,
             'found': True,

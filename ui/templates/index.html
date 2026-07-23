@@ -400,6 +400,17 @@
                 <ol>
                     <li><strong>Refresh</strong> — Click <strong>Refresh</strong> in the toolbar to rescan for connected devices.</li>
                     <li><strong>Check wiring</strong> — Verify that each NI DAQ device is powered on and that USB or Ethernet cables are securely connected.</li>
+                    <li><strong>Configure Chassis IP</strong> — If using Ethernet cDAQ, configure the chassis IP in NI MAX and ensure it shows as <strong>Connected</strong>, then click <strong>Refresh</strong>.
+                        <div style="margin-top:6px;padding:8px 12px;background:#0d1b2a;border-radius:4px;font-size:12px;color:#b0bec5;line-height:1.6;">
+                            <strong>Steps to configure in NI MAX:</strong><br>
+                            1. Open <strong>NI MAX</strong> from the Start menu<br>
+                            2. Under <strong>Remote Systems</strong>, wait for the chassis to appear (may take 10-30 seconds)<br>
+                            3. If chassis does not appear, click <strong>Create New → Remote System</strong> and enter the chassis hostname or IP<br>
+                            4. Right-click the chassis → <strong>Properties → Network Settings</strong> to set/verify the IP address<br>
+                            5. Ensure chassis shows as <strong>Connected</strong> with a green checkmark<br>
+                            6. Return here and click <strong>Refresh</strong> to detect the chassis
+                        </div>
+                    </li>
                     <li><strong>Restart the server</strong> — If devices are still not detected, stop and restart the ATS Test System server, then click <strong>Refresh</strong> again.</li>
                 </ol>
             </div>
@@ -1925,6 +1936,7 @@
                 devicesLoaded = true;
             }
         }
+
     </script>
 </body>
 </html>

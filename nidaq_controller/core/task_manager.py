@@ -205,6 +205,13 @@ class TaskManager:
                        terminal_config: str = "RSE") -> Optional[str]:
         """
         Create an analog input task.
+        ...
+        """
+        if not channels:
+            log.error("No channels provided for AI task")
+            return None
+        """
+        Create an analog input task.
 
         Args:
             device_name: Name of the DAQ device (e.g., "cDAQ1Mod1")
@@ -228,12 +235,15 @@ class TaskManager:
             # Add analog input channels
             channel_string = _physical_channel_string(device_name, channels)
 
+            terminal_config_enum = getattr(
+                self._nidaqmx.constants.TerminalConfiguration,
+                terminal_config,
+                self._nidaqmx.constants.TerminalConfiguration.RSE
+            )
+
             task.ai_channels.add_ai_voltage_chan(
                 channel_string,
-                terminal_config=getattr(
-                    self._nidaqmx.constants.TerminalConfiguration,
-                    terminal_config
-                ),
+                terminal_config=terminal_config_enum,
                 min_val=voltage_range[0],
                 max_val=voltage_range[1]
             )

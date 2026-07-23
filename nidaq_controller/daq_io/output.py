@@ -32,11 +32,9 @@ from app_logging.logger import get_logger
 from core.task_manager import TaskManager
 from core.device_manager import ModuleInfo
 from utils.utils import validate_numeric_input
+from constants import AC_WAVEFORM_SAMPLES, AC_SAMPLE_RATE
 
 log = get_logger(__name__)
-
-AC_WAVEFORM_SAMPLES = 5000
-AC_SAMPLE_RATE = 10000.0
 
 
 class SignalType(Enum):

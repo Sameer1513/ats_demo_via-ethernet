@@ -44,9 +44,14 @@ from daq_io.output import (
     convert_to_output_level,
 )
 from daq_io.digital_io import DigitalIOController
+from constants import (
+    DEFAULT_HOST, DEFAULT_LOG_LEVEL, DEFAULT_SAMPLE_RATE,
+    DEFAULT_SAMPLES_PER_CHANNEL, MAX_LOG_ENTRIES, DEFAULT_PORT,
+    NETWORK_DEVICE_ADD_TIMEOUT, MILLIAMPS_TO_AMPS
+)
 
 # Initialize
-initialize_logging(level='DEBUG')
+initialize_logging(level=DEFAULT_LOG_LEVEL)
 log = get_logger(__name__)
 # Config is loaded lazily on first access; avoid blocking the network stack here.
 
@@ -67,7 +72,7 @@ def _ao_task_key(device_idx: int, module_idx: int, channel: str) -> str:
     safe = channel.replace('/', '_').replace(':', '_')
     return f"ao_{device_idx}_{module_idx}_{safe}"
 _log_entries: list = []
-_max_log_entries = 200
+_max_log_entries = MAX_LOG_ENTRIES
 
 app = Flask(__name__, template_folder=str(PACKAGE_DIR.parent.parent / 'ui' / 'templates'),
             static_folder=str(PACKAGE_DIR.parent.parent / 'ui' / 'static'))
@@ -141,12 +146,12 @@ def stop_all_ai_tasks() -> None:
 def get_controller(device_idx: int, module_idx: int):
     """Get a device and module by index from the discovered list."""
     devices = device_manager.get_all_devices()
-    if not devices or device_idx >= len(devices):
-        return None, None, "Device not found"
+    if not devices or device_idx < 0 or device_idx >= len(devices):
+        return None, None, f"Device not found (index {device_idx} out of range)"
     
     device = devices[device_idx]
-    if module_idx >= len(device.modules):
-        return None, None, "Module not found"
+    if module_idx < 0 or module_idx >= len(device.modules):
+        return None, None, f"Module not found (index {module_idx} out of range)"
     
     return device, device.modules[module_idx], None
 
@@ -168,6 +173,7 @@ def get_ao_controller(device_idx: int, module_idx: int, module):
 
 
 def _ao_module_lock(device_idx: int, module_idx: int) -> threading.Lock:
+    """Get or create a per-module lock for AO operations (thread-safe)."""
     key = f"{device_idx}_{module_idx}"
     with _ao_locks_guard:
         if key not in _ao_module_locks:
@@ -375,7 +381,7 @@ def api_add_network_device():
 
         device_name = (data.get('device_name') or '').strip()
         attempt_reservation = data.get('attempt_reservation', True)
-        timeout = float(data.get('timeout', 10.0))
+        timeout = float(data.get('timeout', NETWORK_DEVICE_ADD_TIMEOUT))
 
         added_name = device_manager.add_network_device(
             ip_or_hostname.strip(),
@@ -410,8 +416,8 @@ def api_ai_read():
         if err:
             return err
         channels = data.get('channels', [])
-        rate = float(data.get('rate', 1000.0))
-        samples = int(data.get('samples', 10))
+        rate = float(data.get('rate', DEFAULT_SAMPLE_RATE))
+        samples = int(data.get('samples', DEFAULT_SAMPLES_PER_CHANNEL))
         terminal_config = data.get('terminal_config', 'RSE')
 
         device, module, error = get_controller(di, mi)
@@ -460,8 +466,8 @@ def api_ai_start():
         if err:
             return err
         channels = data.get('channels', [])
-        rate = float(data.get('rate', 1000.0))
-        samples = int(data.get('samples', 100))
+        rate = float(data.get('rate', DEFAULT_SAMPLE_RATE))
+        samples = int(data.get('samples', DEFAULT_SAMPLES_PER_CHANNEL))
         terminal_config = data.get('terminal_config', 'RSE')
 
         device, module, error = get_controller(di, mi)
@@ -592,8 +598,8 @@ def api_ao_start():
                 applied_display = float(amplitude)
 
             if is_current:
-                value = value / 1000.0
-                amplitude = amplitude / 1000.0
+                value = value / MILLIAMPS_TO_AMPS
+                amplitude = amplitude / MILLIAMPS_TO_AMPS
                 applied_display = round(applied_display, 4)
 
             display_unit = 'mA' if is_current else 'V'
@@ -620,10 +626,13 @@ def api_ao_start():
             # the analog output subsystem, so a task on one channel reserves
             # the entire module.
             _prefix = f"ao_{di}_{mi}_"
+            _task_names_to_stop = set()
             for _existing_key in list(_active_ao_tasks.keys()):
                 if _existing_key.startswith(_prefix):
-                    controller.stop_output(_active_ao_tasks[_existing_key])
-                    _remove_ao_task_refs(_active_ao_tasks[_existing_key])
+                    _task_names_to_stop.add(_active_ao_tasks[_existing_key])
+            for _task_name in _task_names_to_stop:
+                controller.stop_output(_task_name)
+                _remove_ao_task_refs(_task_name)
 
             _clear_ao_channel_tasks(module.name, channel)
 
@@ -712,10 +721,13 @@ def api_ao_write_config_module():
             # the analog output subsystem, so a task on one channel reserves
             # the entire module.
             _prefix = f"ao_{di}_{mi}_"
+            _task_names_to_stop = set()
             for _existing_key in list(_active_ao_tasks.keys()):
                 if _existing_key.startswith(_prefix):
-                    controller.stop_output(_active_ao_tasks[_existing_key])
-                    _remove_ao_task_refs(_active_ao_tasks[_existing_key])
+                    _task_names_to_stop.add(_active_ao_tasks[_existing_key])
+            for _task_name in _task_names_to_stop:
+                controller.stop_output(_task_name)
+                _remove_ao_task_refs(_task_name)
 
             _stop_ao_tasks_for_channels(di, mi, module, controller, target_channels)
 
@@ -727,7 +739,7 @@ def api_ao_write_config_module():
                     float(amplitude), SignalType.AC, value_mode, wf_type
                 )
                 applied_display = float(amplitude_val)
-                actual_amplitude = amplitude_val / 1000.0 if is_current else amplitude_val
+                actual_amplitude = amplitude_val / MILLIAMPS_TO_AMPS if is_current else amplitude_val
                 if is_current:
                     applied_display = round(applied_display, 4)
                 applied_out = round(applied_display, 4)
@@ -777,7 +789,7 @@ def api_ao_write_config_module():
                         applied_display = float(output_value)
 
                         if is_current:
-                            actual_value = output_value / 1000.0
+                            actual_value = output_value / MILLIAMPS_TO_AMPS
                             applied_display = round(applied_display, 4)
                         else:
                             actual_value = output_value
@@ -1184,8 +1196,8 @@ def main() -> None:
 
     try:
         app.run(
-            host='0.0.0.0',
-            port=5000,
+            host=DEFAULT_HOST,
+            port=DEFAULT_PORT,
             debug=False,
             use_reloader=False,
         )

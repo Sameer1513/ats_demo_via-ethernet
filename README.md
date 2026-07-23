@@ -7,18 +7,19 @@ A web-based automated test system for controlling National Instruments DAQ hardw
 ```
 ats_demo_via-ethernet/
 ├── ni_daq_controller/           # Main application package
+│   ├── constants.py             # Centralized constants and config defaults
 │   ├── start                    # Launcher: run from ni_daq_controller folder
 │   ├── start_web_server.py      # Universal launcher: run from anywhere
 │   ├── requirements.txt         # Python dependencies
 │   ├── web/
-│   │   └── app.py               # Flask web server (port 5000)
+│   │   └── app.py               # Flask web server (port 5000) & REST API
 │   ├── core/
 │   │   ├── device_manager.py    # Device discovery and management
 │   │   ├── module_manager.py    # Module detection and configuration
 │   │   └── task_manager.py      # NI-DAQmx task management
 │   ├── daq_io/
 │   │   ├── input.py             # Analog input operations
-│   │   ├── output.py            # Analog output operations
+│   │   ├── output.py            # Analog output operations (DC + AC)
 │   │   └── digital_io.py        # Digital I/O operations
 │   ├── app_logging/
 │   │   └── logger.py            # Logging system
@@ -32,6 +33,9 @@ ats_demo_via-ethernet/
 │   │   └── index.html           # Main UI page
 │   └── static/
 │       └── daq_usb_config.js    # Relay to NI line mappings
+├── .venv/                       # Python virtual environment (created by user)
+│   ├── Scripts/activate         # Activate venv (Windows)
+│   └── ...
 └── README.md                    # This file
 ```
 
@@ -46,12 +50,23 @@ ats_demo_via-ethernet/
 ## Installation
 
 1. Download and install NI-DAQmx Runtime from https://www.ni.com/en/support/downloads/drivers/download.ni-daqmx.html
-2. Open terminal in `ni_daq_controller` folder
-3. Run: `pip install -r requirements.txt`
+2. Open terminal in `ats_demo_via-ethernet` folder
+3. Create virtual environment:
+   ```bash
+   python -m venv .venv
+   ```
+4. Activate virtual environment:
+   ```bash
+   .venv\Scripts\activate
+   ```
+5. Install dependencies:
+   ```bash
+   pip install -r nidaq_controller\requirements.txt
+   ```
 
 ## Running the Application
 
-Start the web server:
+With the virtual environment activated, start the web server:
 
 ```bash
 cd ni_daq_controller
