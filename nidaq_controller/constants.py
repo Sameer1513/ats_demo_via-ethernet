@@ -43,3 +43,17 @@ MILLIAMPS_TO_AMPS = 1000.0
 
 # Digital I/O
 DEFAULT_MONITOR_INTERVAL_MS = 100.0
+
+# Breaker trip record on 4 wet digital inputs.
+# Pre-trigger, 10 ms trip pulse, 52A falls with the pulse, 52B rises
+# opening_travel later, close coil stays low, then post-trigger.
+TRIP_PRE_TRIGGER_S = 0.200
+TRIP_PULSE_S = 0.010
+TRIP_OPENING_TRAVEL_S = 0.100
+TRIP_POST_TRIGGER_S = 0.300
+TRIP_OPERATION_MAX_S = 3.0
+TRIP_WAVEFORM_RATE_HZ = 1000.0
+TRIP_ARM_TIMEOUT_S = 20.0
+# Gap between the end of a trip record and the close arm, and again
+# between close and the next trip.
+OPERATION_INTERVAL_S = 30.0

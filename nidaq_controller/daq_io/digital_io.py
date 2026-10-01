@@ -129,6 +129,23 @@ class DigitalIOController:
         self._port_do_tasks: Dict[str, str] = {}
         self._port_line_states: Dict[str, List[bool]] = {}
         self._last_failed_ports: List[int] = []
+        self._waveform_lock = threading.Lock()
+        self._op_state_lock = threading.Lock()
+        self._op_loop_stop: Optional[threading.Event] = None
+        self._op_loop_thread: Optional[threading.Thread] = None
+        self._op_state: Dict[str, Any] = {
+            "running": False,
+            "phase": "idle",
+            "cycle": 0,
+            "interval_s": 30.0,
+            "next_operation": None,
+            "wait_until": None,
+            "trip_seq": 0,
+            "close_seq": 0,
+            "trip": None,
+            "close": None,
+            "error": None,
+        }
 
         # Parse digital channel information
         self._di_channels: List[DigitalChannelInfo] = []
@@ -905,12 +922,190 @@ class DigitalIOController:
             log.error("Failed to stop counter output: %s", e)
             return False
 
+    def capture_trip_waveform(self,
+                               channels: Dict[str, str],
+                               arm_timeout_s: float = 20.0) -> Dict[str, Any]:
+        """Sample four wet DI lines through one trip event."""
+        from daq_io.di_waveform import acquire_trip_waveform
+        return self._capture_one(acquire_trip_waveform, channels, arm_timeout_s)
+
+    def capture_close_waveform(self,
+                                channels: Dict[str, str],
+                                arm_timeout_s: float = 20.0) -> Dict[str, Any]:
+        """Sample four wet DI lines through one close event."""
+        from daq_io.di_waveform import acquire_close_waveform
+        return self._capture_one(acquire_close_waveform, channels, arm_timeout_s)
+
+    def _capture_one(self, acquire, channels: Dict[str, str], arm_timeout_s: float) -> Dict[str, Any]:
+        if not self._waveform_lock.acquire(blocking=False):
+            raise RuntimeError("Trip/close capture already running")
+        try:
+            self._release_di_task()
+            return acquire(channels, arm_timeout_s=arm_timeout_s)
+        finally:
+            self._waveform_lock.release()
+
+    def _release_di_task(self) -> None:
+        self.stop_digital_monitoring()
+        with self._lock:
+            if self._di_task:
+                self.task_manager.clear_task(self._di_task)
+                self._di_task = None
+
+    def start_operation_loop(self,
+                              channels: Dict[str, str],
+                              interval_s: float = 30.0) -> Dict[str, Any]:
+        """
+        Alternate trip and close captures. After each record, wait
+        interval_s before arming the other operation.
+        """
+        if self._op_loop_thread and self._op_loop_thread.is_alive():
+            return self.operation_loop_status()
+        if not self._waveform_lock.acquire(blocking=False):
+            raise RuntimeError("Trip/close capture already running")
+
+        stop = threading.Event()
+        self._op_loop_stop = stop
+        with self._op_state_lock:
+            self._op_state = {
+                "running": True,
+                "phase": "arm-trip",
+                "cycle": 0,
+                "interval_s": float(interval_s),
+                "next_operation": "trip",
+                "wait_until": None,
+                "trip_seq": 0,
+                "close_seq": 0,
+                "trip": None,
+                "close": None,
+                "error": None,
+            }
+        thread = threading.Thread(
+            target=self._operation_loop_main,
+            args=(dict(channels), float(interval_s), stop),
+            name=f"op-loop-{self.device_name}",
+            daemon=True,
+        )
+        self._op_loop_thread = thread
+        try:
+            thread.start()
+        except Exception:
+            self._waveform_lock.release()
+            with self._op_state_lock:
+                self._op_state["running"] = False
+                self._op_state["phase"] = "idle"
+            raise
+        return self.operation_loop_status()
+
+    def stop_operation_loop(self) -> Dict[str, Any]:
+        """Stop the trip/close loop. Returns the latest status."""
+        stop = self._op_loop_stop
+        thread = self._op_loop_thread
+        if stop is not None:
+            stop.set()
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=5.0)
+        return self.operation_loop_status()
+
+    def operation_loop_status(self) -> Dict[str, Any]:
+        """Snapshot of the loop, including the latest trip and close records."""
+        with self._op_state_lock:
+            state = dict(self._op_state)
+        wait_until = state.get("wait_until")
+        remaining = 0.0
+        if state.get("running") and wait_until:
+            remaining = max(0.0, float(wait_until) - time.time())
+        state["wait_remaining_s"] = round(remaining, 1)
+        state.pop("wait_until", None)
+        return state
+
+    def _operation_loop_main(self,
+                              channels: Dict[str, str],
+                              interval_s: float,
+                              stop: threading.Event) -> None:
+        cycle = 0
+        try:
+            from daq_io.di_waveform import (
+                OperationStopped,
+                acquire_close_waveform,
+                acquire_trip_waveform,
+            )
+            while not stop.is_set():
+                cycle += 1
+                self._set_op_phase("arm-trip", cycle, next_operation="trip")
+                try:
+                    self._release_di_task()
+                    record = acquire_trip_waveform(channels, stop_event=stop)
+                    self._store_op_record("trip", record)
+                except OperationStopped:
+                    break
+                except Exception as exc:
+                    self._set_op_error(str(exc))
+                    log.error("Trip capture in loop failed: %s", exc)
+                if not self._wait_operation_gap(stop, interval_s, "close", cycle):
+                    break
+
+                self._set_op_phase("arm-close", cycle, next_operation="close")
+                try:
+                    self._release_di_task()
+                    record = acquire_close_waveform(channels, stop_event=stop)
+                    self._store_op_record("close", record)
+                except OperationStopped:
+                    break
+                except Exception as exc:
+                    self._set_op_error(str(exc))
+                    log.error("Close capture in loop failed: %s", exc)
+                if not self._wait_operation_gap(stop, interval_s, "trip", cycle):
+                    break
+        finally:
+            with self._op_state_lock:
+                self._op_state["running"] = False
+                self._op_state["phase"] = "idle"
+                self._op_state["wait_until"] = None
+                self._op_state["next_operation"] = None
+            self._waveform_lock.release()
+            log.info("Trip/close loop stopped on %s", self.device_name)
+
+    def _wait_operation_gap(self,
+                             stop: threading.Event,
+                             interval_s: float,
+                             next_operation: str,
+                             cycle: int) -> bool:
+        """Wait interval_s. False if the loop was stopped during the wait."""
+        with self._op_state_lock:
+            self._op_state["phase"] = "wait"
+            self._op_state["cycle"] = cycle
+            self._op_state["next_operation"] = next_operation
+            self._op_state["wait_until"] = time.time() + interval_s
+        stopped = stop.wait(interval_s)
+        return not stopped
+
+    def _set_op_phase(self, phase: str, cycle: int, next_operation: str) -> None:
+        with self._op_state_lock:
+            self._op_state["running"] = True
+            self._op_state["phase"] = phase
+            self._op_state["cycle"] = cycle
+            self._op_state["next_operation"] = next_operation
+            self._op_state["wait_until"] = None
+            self._op_state["error"] = None
+
+    def _store_op_record(self, operation: str, record: Dict[str, Any]) -> None:
+        with self._op_state_lock:
+            self._op_state[operation] = record
+            self._op_state[f"{operation}_seq"] = int(self._op_state.get(f"{operation}_seq", 0)) + 1
+            self._op_state["error"] = None
+
+    def _set_op_error(self, message: str) -> None:
+        with self._op_state_lock:
+            self._op_state["error"] = message
+
     def cleanup(self) -> None:
         """Clean up all resources."""
         self.reset_io_state()
 
     def reset_io_state(self) -> None:
         """Release held DO/DI tasks and cached line state."""
+        self.stop_operation_loop()
         self.stop_digital_monitoring()
 
         # Clear digital tasks

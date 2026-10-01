@@ -140,6 +140,29 @@
         .dio-status.true-val { color: #69f0ae; }
         .dio-status.false-val { color: #ef9a9a; }
 
+        .trip-wave-panel {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 12px;
+        }
+        .trip-wave-channels {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px; margin: 8px 0;
+        }
+        .trip-wave-channels label {
+            display: flex; flex-direction: column; gap: 4px;
+            font-size: 11px; color: #aaa;
+        }
+        .trip-wave-channels select { width: 100%; }
+        .trip-wave-meta {
+            font-family: 'Courier New', monospace; font-size: 12px; color: #ff8a80;
+            display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0;
+        }
+        .trip-wave-warn { color: #ffd54f; font-size: 12px; margin-bottom: 6px; }
+        .trip-wave-plot {
+            background: #0d1b2a; border-radius: 6px; overflow: hidden;
+        }
+        .trip-wave-plot svg { width: 100%; height: 280px; display: block; }
+
         .log-container {
             background: #0d1b2a; border-radius: 6px; padding: 12px;
             height: 300px; overflow-y: auto; font-family: 'Courier New', monospace;
@@ -481,7 +504,7 @@
             if (modPanel) modPanel.classList.add('active');
         }
 
-        async function apiCall(endpoint, method='GET', body=null, timeoutMs=8000) {
+        async function apiCall(endpoint, method='GET', body=null, timeoutMs=8000, quiet=false) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
@@ -499,7 +522,7 @@
                 return data;
             } catch (e) {
                 const msg = e.name === 'AbortError' ? 'Request timed out' : e.message;
-                showToast(msg, 'error');
+                if (!quiet) showToast(msg, 'error');
                 return null;
             } finally {
                 clearTimeout(timer);
@@ -750,12 +773,270 @@
             return [...channels];
         }
 
+        function escAttr(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        }
+
+        function diLineOptions(mod) {
+            return (mod?.di_channels || []).map(ch => ({
+                label: shortDigitalName(ch),
+                channel: ch,
+            }));
+        }
+
+        function wetDiChannelOptions(mod, deviceName) {
+            const doCh = digitalChannelsForModule(mod);
+            const rows = (DAQ_USB_CONFIG.DI_WET || []).flatMap(g => g.rows || []);
+            return rows.map(row => ({
+                label: `Ch${row.ch} ${row.net} ${row.niLine}`,
+                channel: resolveNiChannel(deviceName, doCh, row.niLine),
+            })).filter(opt => opt.channel);
+        }
+
+        function renderTripWaveformPanel(di, mi, options) {
+            const roles = [
+                ['trip_coil', 'Trip coil — 10 ms pulse on trip, low on close'],
+                ['switch_52a', '52A — falls on trip, rises 100 ms into close'],
+                ['switch_52b', '52B — rises 100 ms into trip, falls on close'],
+                ['close_coil', 'Close coil — low on trip, 10 ms pulse on close'],
+            ];
+            const selects = roles.map(([key, label], roleIdx) => {
+                const pick = Math.min(roleIdx, Math.max(options.length - 1, 0));
+                const opts = options.map((opt, oi) =>
+                    `<option value="${escAttr(opt.channel)}" ${oi === pick ? 'selected' : ''}>${escAttr(opt.label)}</option>`
+                ).join('');
+                return `<label>${label}<select id="trip_sel_${di}_${mi}_${key}">${opts}</select></label>`;
+            }).join('');
+            const plotBlock = (op, title) => `
+                <div style="margin-top:10px;color:#00d4ff;font-size:12px;">${title}</div>
+                <div class="trip-wave-warn" id="${op}_warn_${di}_${mi}"></div>
+                <div class="trip-wave-meta" id="${op}_meta_${di}_${mi}"></div>
+                <div class="trip-wave-plot" id="${op}_plot_${di}_${mi}"></div>`;
+            return `
+            <div class="trip-wave-panel" id="trip_panel_${di}_${mi}">
+                <div class="dio-module-toolbar">
+                    <span style="color:#00d4ff;font-size:13px;">Trip / close · 4 digital inputs</span>
+                    <button class="btn-secondary btn-sm" onclick="previewDiWaveform(${di},${mi},'trip')">Expected trip</button>
+                    <button class="btn-secondary btn-sm" onclick="previewDiWaveform(${di},${mi},'close')">Expected close</button>
+                    <button class="btn-primary btn-sm" id="op_start_${di}_${mi}" onclick="startOperationLoop(${di},${mi})">Start loop · 30 s</button>
+                    <button class="btn-danger btn-sm" id="op_stop_${di}_${mi}" onclick="stopOperationLoop(${di},${mi})" disabled>Stop</button>
+                </div>
+                <p style="color:#888;font-size:12px;margin:6px 0;">
+                    Trip: 10 ms trip pulse, 52A falls with it, 52B rises 100 ms later, close coil stays low.
+                    Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip coil stays low.
+                    The loop arms trip, then waits 30 s, arms close, waits 30 s, and repeats.
+                    Lines must be inputs in NI MAX.
+                </p>
+                <div class="trip-wave-channels">${selects}</div>
+                <div class="trip-wave-meta" id="op_loop_status_${di}_${mi}"></div>
+                ${plotBlock('trip', 'TRIP')}
+                ${plotBlock('close', 'CLOSE')}
+            </div>`;
+        }
+
+        function readTripChannels(di, mi) {
+            const keys = ['trip_coil', 'switch_52a', 'switch_52b', 'close_coil'];
+            const channels = {};
+            for (const key of keys) {
+                const el = document.getElementById(`trip_sel_${di}_${mi}_${key}`);
+                channels[key] = el ? el.value : '';
+            }
+            return channels;
+        }
+
+        function fmtMs(v) {
+            return (v === null || v === undefined || Number.isNaN(Number(v))) ? '—' : `${Number(v).toFixed(1)} ms`;
+        }
+
+        function drawDiWaveform(di, mi, data) {
+            const operation = data?.operation === 'close' ? 'close' : 'trip';
+            const plot = document.getElementById(`${operation}_plot_${di}_${mi}`);
+            const meta = document.getElementById(`${operation}_meta_${di}_${mi}`);
+            const warn = document.getElementById(`${operation}_warn_${di}_${mi}`);
+            if (!plot || !data?.channels?.length || !data.t_ms?.length) return;
+            const t = data.t_ms;
+            const timing = data.timing || {};
+            const spec = data.spec || {};
+            const display = data.display || {};
+            if (meta) {
+                meta.innerHTML = [
+                    `PULSE ${fmtMs(timing.pulse_ms)}`,
+                    `${display.fall_caption || 'FALL'} ${fmtMs(timing.contact_fall_ms)}`,
+                    `${display.travel_label || 'TRAVEL'} ${fmtMs(timing.travel_ms)}`,
+                    `OPERATION ${fmtMs(timing.operation_time_ms)}`,
+                    `PRE ${fmtMs(spec.pre_trigger_ms)}`,
+                    `POST ${fmtMs(spec.post_trigger_ms)}`,
+                    timing.idle_stayed_low ? (display.idle_ok || 'IDLE LOW') : (display.idle_bad || 'IDLE WENT HIGH'),
+                    data.sample_rate_hz ? `${Number(data.sample_rate_hz).toFixed(0)} Hz` : '',
+                ].filter(Boolean).map(s => `<span>${s}</span>`).join('');
+            }
+            if (warn) warn.textContent = (data.warnings || []).join(' ');
+
+            const channels = data.channels;
+            const t0 = t[0];
+            const t1 = t[t.length - 1];
+            const span = Math.max(t1 - t0, 1);
+            const W = 1000;
+            const laneH = 52;
+            const padL = 118;
+            const padR = 16;
+            const padT = 18;
+            const padB = 32;
+            const H = padT + channels.length * laneH + padB;
+            const xOf = (ms) => padL + ((ms - t0) / span) * (W - padL - padR);
+            let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+            svg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" stroke="#333" />`;
+
+            const marks = [
+                [timing.pulse_rise_ms, display.pulse_mark || ''],
+                [timing.pulse_fall_ms, ''],
+                [timing.contact_rise_ms, display.rise_mark || ''],
+            ];
+            for (const [ms, label] of marks) {
+                if (ms === null || ms === undefined) continue;
+                const x = xOf(ms).toFixed(1);
+                svg += `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}" stroke="#e53935" stroke-dasharray="3 3" stroke-width="1"/>`;
+                if (label) {
+                    svg += `<text x="${x}" y="12" fill="#e53935" font-size="10" text-anchor="middle">${label}</text>`;
+                }
+            }
+
+            channels.forEach((ch, i) => {
+                const top = padT + i * laneH;
+                const yHigh = top + 12;
+                const yLow = top + laneH - 14;
+                svg += `<text x="6" y="${top + 24}" fill="#9aa" font-size="11">${escAttr(ch.label)}</text>`;
+                svg += `<line x1="${padL}" y1="${yLow}" x2="${W - padR}" y2="${yLow}" stroke="#243044"/>`;
+                const samples = ch.samples || [];
+                if (!samples.length) return;
+                const yOf = (bit) => bit ? yHigh : yLow;
+                let d = `M ${xOf(t[0]).toFixed(1)} ${yOf(samples[0])}`;
+                for (let s = 1; s < samples.length; s++) {
+                    d += ` H ${xOf(t[s]).toFixed(1)} V ${yOf(samples[s])}`;
+                }
+                d += ` H ${xOf(t1).toFixed(1)}`;
+                svg += `<path d="${d}" fill="none" stroke="#f5f5f5" stroke-width="2"/>`;
+            });
+
+            const travel0 = timing.contact_fall_ms;
+            const travel1 = timing.contact_rise_ms;
+            if (travel0 != null && travel1 != null) {
+                const y = H - 14;
+                const x0 = xOf(travel0).toFixed(1);
+                const x1 = xOf(travel1).toFixed(1);
+                svg += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="#e53935" stroke-width="1.5"/>`;
+                svg += `<text x="${((+x0) + (+x1)) / 2}" y="${y - 4}" fill="#e53935" font-size="10" text-anchor="middle">${escAttr(display.travel_label || 'TRAVEL')}</text>`;
+            }
+            svg += `<text x="${padL}" y="${H - 4}" fill="#666" font-size="10">${t0.toFixed(0)} ms</text>`;
+            svg += `<text x="${W - padR}" y="${H - 4}" fill="#666" font-size="10" text-anchor="end">${t1.toFixed(0)} ms</text>`;
+            svg += '</svg>';
+            plot.innerHTML = svg;
+        }
+
+        async function previewDiWaveform(di, mi, operation) {
+            const result = await apiCall('/api/di/trip-waveform', 'POST', { mode: 'preview', operation });
+            if (result) drawDiWaveform(di, mi, result);
+        }
+
+        function formatLoopStatus(data) {
+            let text = 'Stopped';
+            if (data.running) {
+                if (data.phase === 'wait') {
+                    const next = data.next_operation === 'close' ? 'close' : 'trip';
+                    text = `Cycle ${data.cycle} · ${next} in ${Number(data.wait_remaining_s || 0).toFixed(0)} s`;
+                } else if (data.phase === 'arm-close') {
+                    text = `Cycle ${data.cycle} · armed for close coil`;
+                } else if (data.phase === 'arm-trip') {
+                    text = `Cycle ${data.cycle} · armed for trip coil`;
+                } else {
+                    text = data.phase || 'Running';
+                }
+            }
+            if (data.error) text += ` · ${data.error}`;
+            return text;
+        }
+
+        function applyLoopStatus(di, mi, data) {
+            const status = document.getElementById(`op_loop_status_${di}_${mi}`);
+            if (status) status.textContent = formatLoopStatus(data);
+            const start = document.getElementById(`op_start_${di}_${mi}`);
+            const stop = document.getElementById(`op_stop_${di}_${mi}`);
+            if (start) start.disabled = !!data.running;
+            if (stop) stop.disabled = !data.running;
+            window._opSeq = window._opSeq || {};
+            const key = `${di}_${mi}`;
+            const seq = window._opSeq[key] || { trip: 0, close: 0 };
+            if (data.trip && data.trip_seq !== seq.trip) {
+                seq.trip = data.trip_seq;
+                drawDiWaveform(di, mi, data.trip);
+            }
+            if (data.close && data.close_seq !== seq.close) {
+                seq.close = data.close_seq;
+                drawDiWaveform(di, mi, data.close);
+            }
+            window._opSeq[key] = seq;
+        }
+
+        function ensureLoopPoll(di, mi) {
+            window._opLoopTimer = window._opLoopTimer || {};
+            const key = `${di}_${mi}`;
+            if (window._opLoopTimer[key]) return;
+            window._opLoopTimer[key] = setInterval(() => pollOperationLoop(di, mi), 1000);
+        }
+
+        function clearLoopPoll(di, mi) {
+            window._opLoopTimer = window._opLoopTimer || {};
+            const key = `${di}_${mi}`;
+            if (window._opLoopTimer[key]) {
+                clearInterval(window._opLoopTimer[key]);
+                delete window._opLoopTimer[key];
+            }
+        }
+
+        async function pollOperationLoop(di, mi) {
+            const data = await apiCall(
+                `/api/di/operation-loop?device_idx=${di}&module_idx=${mi}`,
+                'GET', null, 8000, true
+            );
+            if (!data) return;
+            applyLoopStatus(di, mi, data);
+            if (!data.running) clearLoopPoll(di, mi);
+        }
+
+        async function startOperationLoop(di, mi) {
+            const status = document.getElementById(`op_loop_status_${di}_${mi}`);
+            if (status) status.textContent = 'Starting loop…';
+            const result = await apiCall('/api/di/operation-loop/start', 'POST', {
+                device_idx: di,
+                module_idx: mi,
+                channels: readTripChannels(di, mi),
+                interval_s: 30,
+            });
+            if (!result) return;
+            applyLoopStatus(di, mi, result);
+            if (result.running) ensureLoopPoll(di, mi);
+        }
+
+        async function stopOperationLoop(di, mi) {
+            const status = document.getElementById(`op_loop_status_${di}_${mi}`);
+            if (status) status.textContent = 'Stopping…';
+            const result = await apiCall('/api/di/operation-loop/stop', 'POST', {
+                device_idx: di,
+                module_idx: mi,
+            }, 15000);
+            if (result) applyLoopStatus(di, mi, result);
+            clearLoopPoll(di, mi);
+        }
+
         function renderMappingView(di, mi, mod, deviceName, kind) {
             const groups = DAQ_USB_CONFIG[kind] || [];
             const doCh = digitalChannelsForModule(mod);
             const withOhm = mappingUsesOhm(kind);
             const channelCount = collectMappingChannels(mod, deviceName, kind).length;
-            let html = `
+            let html = kind === 'DI_WET'
+                ? renderTripWaveformPanel(di, mi, wetDiChannelOptions(mod, deviceName))
+                : '';
+            html += `
             <div class="dio-module-toolbar">
                 <span style="color:#00d4ff;font-size:13px;">${mappingTabTitle(kind)} · ${channelCount} relay(s)</span>
                 <button class="btn-success btn-sm" onclick="writeMappingTab(${di},${mi},'${deviceName}','${kind}',true)">All True</button>
@@ -966,10 +1247,14 @@
             return `
                 <div class="tabs-usb-view" id="eth_di_tabs_${di}_${mi}">
                     ${v('channels', 'Channels', true)}
+                    ${v('waveform', 'Trip / Close', false)}
                     ${v('select', 'Select', false)}
                 </div>
                 <div id="eth_di_view_channels_${di}_${mi}" class="usb-view-panel active channel-list">
                     ${renderEthernetDiChannels(di, mi, mod, device)}
+                </div>
+                <div id="eth_di_view_waveform_${di}_${mi}" class="usb-view-panel">
+                    ${renderTripWaveformPanel(di, mi, diLineOptions(mod))}
                 </div>
                 <div id="eth_di_view_select_${di}_${mi}" class="usb-view-panel channel-list">
                     ${renderEthernetDiSelectView(di, mi, mod, device)}
@@ -1343,7 +1628,9 @@
         }
 
         function renderModuleChannels(di, mi, mod, device) {
-            let html = '';
+            let html = (mod.di_channels || []).length
+                ? renderTripWaveformPanel(di, mi, diLineOptions(mod))
+                : '';
             if (moduleHasDigitalOutput(mod)) {
                 html += renderDigitalModuleToolbar(di, mi, mod, null, device);
             } else if ((mod.di_channels?.length || 0) > 0) {

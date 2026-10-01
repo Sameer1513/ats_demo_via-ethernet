@@ -1,0 +1,67 @@
+2026-07-23 15:09:18 | INFO     | app_logging.logger | Logging initialized - Level: DEBUG, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-07-23 15:09:18 | INFO     | core.task_manager | TaskManager initialized
+2026-07-23 15:09:18 | INFO     | core.device_manager | DeviceManager initialized
+2026-07-23 15:09:18 | INFO     | __main__ | Starting ATS Test System web server...
+2026-07-23 15:09:20 | DEBUG    | core.device_manager | NI-DAQmx library loaded successfully
+2026-07-23 15:09:20 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-07-23 15:09:20 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-07-23 15:09:20 | INFO     | __main__ | Detected 0 device(s)
+2026-07-23 15:19:17 | INFO     | app_logging.logger | Logging initialized - Level: DEBUG, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-07-23 15:19:17 | INFO     | core.task_manager | TaskManager initialized
+2026-07-23 15:19:17 | INFO     | core.device_manager | DeviceManager initialized
+2026-07-23 15:19:17 | INFO     | __main__ | Starting ATS Test System web server...
+2026-07-23 15:19:17 | DEBUG    | core.device_manager | NI-DAQmx library loaded successfully
+2026-07-23 15:19:17 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-07-23 15:19:17 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-07-23 15:19:17 | INFO     | __main__ | Detected 0 device(s)
+2026-10-01 11:09:12 | INFO     | app_logging.logger | Logging initialized - Level: INFO, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-10-01 11:09:12 | INFO     | core.task_manager | TaskManager initialized
+2026-10-01 11:09:12 | INFO     | core.device_manager | DeviceManager initialized
+2026-10-01 11:09:12 | INFO     | __main__ | Starting ATS Test System web server...
+2026-10-01 11:09:14 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-01 11:09:14 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-01 11:09:14 | INFO     | __main__ | Detected 0 device(s)
+2026-10-01 11:29:52 | INFO     | app_logging.logger | Logging initialized - Level: INFO, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-10-01 11:29:52 | INFO     | core.task_manager | TaskManager initialized
+2026-10-01 11:29:52 | INFO     | core.device_manager | DeviceManager initialized
+2026-10-01 11:29:52 | INFO     | __main__ | Starting ATS Test System web server...
+2026-10-01 11:29:52 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-01 11:29:52 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-01 11:29:52 | INFO     | __main__ | Detected 0 device(s)
+2026-10-01 11:30:17 | INFO     | __main__ | Trip waveform preview: pulse=10.0 ms, opening travel=100.0 ms
+2026-10-01 12:33:45 | INFO     | app_logging.logger | Logging initialized - Level: INFO, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-10-01 12:33:45 | INFO     | core.task_manager | TaskManager initialized
+2026-10-01 12:33:45 | INFO     | core.device_manager | DeviceManager initialized
+2026-10-01 12:33:45 | INFO     | __main__ | Starting ATS Test System web server...
+2026-10-01 12:33:45 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-01 12:33:45 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-01 12:33:45 | INFO     | __main__ | Detected 0 device(s)
+2026-10-01 12:34:00 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-01 12:34:00 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-01 12:34:00 | INFO     | __main__ | Device discovery: 0 device(s) found
+2026-10-01 12:39:25 | INFO     | app_logging.logger | Logging initialized - Level: INFO, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-10-01 12:39:25 | INFO     | core.task_manager | TaskManager initialized
+2026-10-01 12:39:25 | INFO     | core.device_manager | DeviceManager initialized
+2026-10-01 12:39:25 | INFO     | __main__ | Starting ATS Test System web server...
+2026-10-01 12:39:25 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-01 12:39:25 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-01 12:39:25 | INFO     | __main__ | Detected 0 device(s)
+2026-10-01 12:39:39 | INFO     | __main__ | Trip waveform preview: pulse=10.0 ms, opening travel=100.0 ms
+2026-10-01 12:39:39 | INFO     | __main__ | Trip waveform preview: pulse=10.0 ms, opening travel=100.0 ms
+2026-10-01 12:39:55 | INFO     | __main__ | Trip waveform preview: pulse=10.0 ms, opening travel=100.0 ms
+2026-10-01 12:53:49 | INFO     | core.device_manager | Discovering NI DAQ devices... (2 found)
+2026-10-01 12:53:50 | INFO     | core.device_manager | Device discovery complete. 2 device(s) found.
+2026-10-01 12:53:50 | INFO     | core.device_manager | Devices by connection: 2 USB
+2026-10-01 12:53:50 | INFO     | __main__ | Device discovery: 2 device(s) found
+2026-10-01 12:58:41 | INFO     | core.device_manager | Discovering NI DAQ devices... (2 found)
+2026-10-01 12:58:41 | INFO     | core.device_manager | Device discovery complete. 2 device(s) found.
+2026-10-01 12:58:41 | INFO     | core.device_manager | Devices by connection: 2 USB
+2026-10-01 12:58:41 | INFO     | __main__ | Device discovery: 2 device(s) found
+2026-10-01 12:58:46 | INFO     | core.device_manager | Discovering NI DAQ devices... (2 found)
+2026-10-01 12:58:46 | INFO     | core.device_manager | Device discovery complete. 2 device(s) found.
+2026-10-01 12:58:46 | INFO     | core.device_manager | Devices by connection: 2 USB
+2026-10-01 12:58:46 | INFO     | __main__ | Device discovery: 2 device(s) found
+2026-10-01 12:58:46 | INFO     | core.device_manager | Discovering NI DAQ devices... (2 found)
+2026-10-01 12:58:46 | INFO     | core.device_manager | Device discovery complete. 2 device(s) found.
+2026-10-01 12:58:46 | INFO     | core.device_manager | Devices by connection: 2 USB
+2026-10-01 12:58:46 | INFO     | __main__ | Device discovery: 2 device(s) found

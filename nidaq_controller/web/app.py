@@ -44,10 +44,11 @@ from daq_io.output import (
     convert_to_output_level,
 )
 from daq_io.digital_io import DigitalIOController
+from daq_io.di_waveform import build_close_waveform, build_trip_waveform
 from constants import (
     DEFAULT_HOST, DEFAULT_LOG_LEVEL, DEFAULT_SAMPLE_RATE,
     DEFAULT_SAMPLES_PER_CHANNEL, MAX_LOG_ENTRIES, DEFAULT_PORT,
-    NETWORK_DEVICE_ADD_TIMEOUT, MILLIAMPS_TO_AMPS
+    NETWORK_DEVICE_ADD_TIMEOUT, MILLIAMPS_TO_AMPS, OPERATION_INTERVAL_S,
 )
 
 # Initialize
@@ -971,6 +972,133 @@ def api_di_read():
         return jsonify({'state': state, 'success': True})
     except Exception as e:
         return _api_error('DI read', e, di=di, mi=mi, channel=channel)
+
+
+@app.route('/api/di/trip-waveform', methods=['POST'])
+def api_di_trip_waveform():
+    """API: Expected or captured 4-channel wet DI trip waveform."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        mode = (data.get('mode') or 'preview').strip().lower()
+        operation = (data.get('operation') or 'trip').strip().lower()
+        if operation not in ('trip', 'close'):
+            return jsonify({'error': 'operation must be trip or close'}), 400
+        if mode == 'preview':
+            payload = build_close_waveform() if operation == 'close' else build_trip_waveform()
+            add_log(
+                f"{operation.capitalize()} waveform preview: "
+                f"pulse={payload['timing'].get('pulse_ms')} ms, "
+                f"travel={payload['timing'].get('travel_ms')} ms"
+            )
+            return jsonify(payload)
+
+        if mode != 'capture':
+            return jsonify({'error': 'mode must be preview or capture'}), 400
+
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        channels = data.get('channels') or {}
+        if not isinstance(channels, dict):
+            return jsonify({'error': 'channels must be an object'}), 400
+
+        device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+
+        arm_timeout_s = float(data.get('arm_timeout_s', 20.0))
+        controller = get_dio_controller(di, mi, module)
+        if operation == 'close':
+            payload = controller.capture_close_waveform(channels, arm_timeout_s=arm_timeout_s)
+        else:
+            payload = controller.capture_trip_waveform(channels, arm_timeout_s=arm_timeout_s)
+        timing = payload.get('timing') or {}
+        add_log(
+            f"{operation.capitalize()} waveform capture: "
+            f"pulse={timing.get('pulse_ms')} ms, "
+            f"travel={timing.get('travel_ms')} ms, "
+            f"rate={payload.get('sample_rate_hz')} Hz"
+        )
+        return jsonify(payload)
+    except (ValueError, TimeoutError, RuntimeError) as e:
+        add_log(f"Trip waveform failed: {e}", 'ERROR')
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return _api_error('Trip waveform', e, di=di, mi=mi)
+
+
+def _operation_loop_controller():
+    """Resolve the DI controller for a loop start/stop/status call."""
+    if request.method == 'GET':
+        data = request.args
+    else:
+        data, err = _parse_json()
+        if err:
+            return None, None, None, err
+    if 'device_idx' not in data or 'module_idx' not in data:
+        return None, None, None, (jsonify({'error': 'device_idx and module_idx are required'}), 400)
+    try:
+        di = int(data['device_idx'])
+        mi = int(data['module_idx'])
+    except (TypeError, ValueError):
+        return None, None, None, (jsonify({'error': 'device_idx and module_idx must be integers'}), 400)
+    device, module, error = get_controller(di, mi)
+    if error:
+        return None, None, None, (jsonify({'error': error}), 400)
+    return di, mi, get_dio_controller(di, mi, module), data if request.method != 'GET' else None
+
+
+@app.route('/api/di/operation-loop', methods=['GET'])
+def api_operation_loop_status():
+    """API: Latest trip/close records and loop phase."""
+    try:
+        di, mi, controller, err = _operation_loop_controller()
+        if err:
+            return err
+        return jsonify(controller.operation_loop_status())
+    except Exception as e:
+        return _api_error('Operation loop status', e)
+
+
+@app.route('/api/di/operation-loop/start', methods=['POST'])
+def api_operation_loop_start():
+    """API: Loop trip then close, 30 s apart."""
+    di = mi = None
+    try:
+        di, mi, controller, data = _operation_loop_controller()
+        if controller is None:
+            return data
+        channels = (data or {}).get('channels') or {}
+        if not isinstance(channels, dict):
+            return jsonify({'error': 'channels must be an object'}), 400
+        interval_s = float((data or {}).get('interval_s', OPERATION_INTERVAL_S))
+        if interval_s < 0:
+            return jsonify({'error': 'interval_s must be >= 0'}), 400
+        status = controller.start_operation_loop(channels, interval_s=interval_s)
+        add_log(f"Trip/close loop started, {interval_s:.0f}s apart")
+        return jsonify(status)
+    except (ValueError, RuntimeError) as e:
+        add_log(f"Trip/close loop failed: {e}", 'ERROR')
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return _api_error('Operation loop start', e, di=di, mi=mi)
+
+
+@app.route('/api/di/operation-loop/stop', methods=['POST'])
+def api_operation_loop_stop():
+    """API: Stop the trip/close loop."""
+    try:
+        di, mi, controller, data = _operation_loop_controller()
+        if controller is None:
+            return data
+        status = controller.stop_operation_loop()
+        add_log("Trip/close loop stopped")
+        return jsonify(status)
+    except Exception as e:
+        return _api_error('Operation loop stop', e)
 
 
 @app.route('/api/do/write-module', methods=['POST'])
