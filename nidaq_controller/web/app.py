@@ -986,12 +986,31 @@ def api_di_trip_waveform():
         operation = (data.get('operation') or 'trip').strip().lower()
         if operation not in ('trip', 'close'):
             return jsonify({'error': 'operation must be trip or close'}), 400
+        if mode == 'apply':
+            di, mi, err = _require_indices(data)
+            if err:
+                return err
+            channels = data.get('channels') or {}
+            if not isinstance(channels, dict):
+                return jsonify({'error': 'channels must be an object'}), 400
+            device, module, error = get_controller(di, mi)
+            if error:
+                return jsonify({'error': error}), 400
+            controller = get_dio_controller(di, mi, module)
+            payload = controller.apply_breaker_operation(channels, operation)
+            used = payload.get('channels_used') or {}
+            add_log(
+                f"{operation.upper()} APPLIED on outputs: "
+                + ", ".join(f"{key}={line}" for key, line in used.items())
+            )
+            payload['applied'] = True
+            return jsonify(payload)
+
         if mode == 'preview':
             payload = build_close_waveform() if operation == 'close' else build_trip_waveform()
+            payload['applied'] = False
             add_log(
-                f"{operation.capitalize()} waveform preview: "
-                f"pulse={payload['timing'].get('pulse_ms')} ms, "
-                f"travel={payload['timing'].get('travel_ms')} ms"
+                f"{operation.capitalize()} plot only — outputs were NOT written"
             )
             return jsonify(payload)
 

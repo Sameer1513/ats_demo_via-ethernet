@@ -1019,6 +1019,107 @@ class DigitalIOController:
         state.pop("wait_until", None)
         return state
 
+    def apply_breaker_operation(self,
+                                 channels: Dict[str, str],
+                                 operation: str) -> Dict[str, Any]:
+        """Drive one trip or close on the four output lines. Not a plot-only preview."""
+        if self._op_loop_thread and self._op_loop_thread.is_alive():
+            raise RuntimeError("Stop the loop before applying a single trip or close")
+        if not self._waveform_lock.acquire(blocking=False):
+            raise RuntimeError("Trip/close already running")
+        try:
+            return self.play_breaker_operation(channels, operation, threading.Event())
+        finally:
+            self._waveform_lock.release()
+
+    def play_breaker_operation(self,
+                                channels: Dict[str, str],
+                                operation: str,
+                                stop: threading.Event) -> Dict[str, Any]:
+        """
+        Drive the four lines through one trip or close.
+
+        Trip: 52A starts high, trip coil pulses 10 ms, 52A drops with that
+        falling edge, 52B rises 100 ms later, close coil stays low.
+        Close is the mirror. Raises if a line will not write.
+        """
+        from constants import (
+            TRIP_OPENING_TRAVEL_S,
+            TRIP_POST_TRIGGER_S,
+            TRIP_PRE_TRIGGER_S,
+            TRIP_PULSE_S,
+        )
+        from core.task_manager import normalize_physical_channel
+        from daq_io.di_waveform import (
+            CHANNEL_KEYS,
+            OPERATIONS,
+            OperationStopped,
+            build_close_waveform,
+            build_trip_waveform,
+        )
+
+        op = OPERATIONS[operation]
+        resolved = {
+            key: self._match_do_channel(channels.get(key), normalize_physical_channel)
+            for key in CHANNEL_KEYS
+        }
+        pulse = CHANNEL_KEYS[int(op["pulse_index"])]
+        fall = CHANNEL_KEYS[int(op["fall_index"])]
+        rise = CHANNEL_KEYS[int(op["rise_index"])]
+        levels = {key: False for key in CHANNEL_KEYS}
+        levels[fall] = True
+
+        def apply() -> None:
+            if stop.is_set():
+                raise OperationStopped()
+            # One line per write. USB-6509 rejects a multi-line port task,
+            # which is the path that made Apply trip report NOT applied.
+            for key in CHANNEL_KEYS:
+                channel = resolved[key]
+                if self.set_output_line(channel, bool(levels[key])):
+                    continue
+                detail = (self.task_manager.get_last_error() or "").strip()
+                ports = self.get_last_failed_ports()
+                msg = detail or f"Failed to write {channel}"
+                if ports:
+                    msg += f". Set port {ports} to Output in NI MAX"
+                raise RuntimeError(msg)
+
+        def hold(seconds: float) -> None:
+            if stop.wait(seconds):
+                raise OperationStopped()
+
+        apply()
+        hold(TRIP_PRE_TRIGGER_S)
+        levels[pulse] = True
+        apply()
+        hold(TRIP_PULSE_S)
+        levels[pulse] = False
+        levels[fall] = False
+        apply()
+        hold(TRIP_OPENING_TRAVEL_S)
+        levels[rise] = True
+        apply()
+        hold(TRIP_POST_TRIGGER_S)
+
+        record = build_close_waveform() if operation == "close" else build_trip_waveform()
+        record["mode"] = "driven"
+        record["channels_used"] = resolved
+        return record
+
+    def _match_do_channel(self, raw: Optional[str], normalize) -> str:
+        name = normalize(raw)
+        known = [ch.name for ch in self._do_channels]
+        if not name:
+            raise ValueError("Missing digital output line")
+        if name in known:
+            return name
+        tail = "/".join(name.lower().split("/")[-2:])
+        for ch in known:
+            if ch.lower().endswith(tail):
+                return ch
+        raise ValueError(f"Not a digital output on {self.device_name}: {name}")
+
     def _operation_loop_main(self,
                               channels: Dict[str, str],
                               interval_s: float,
@@ -1030,31 +1131,42 @@ class DigitalIOController:
                 acquire_close_waveform,
                 acquire_trip_waveform,
             )
+            drive = self.has_digital_output()
             while not stop.is_set():
                 cycle += 1
-                self._set_op_phase("arm-trip", cycle, next_operation="trip")
+                self._set_op_phase(
+                    "drive-trip" if drive else "arm-trip", cycle, next_operation="trip"
+                )
                 try:
-                    self._release_di_task()
-                    record = acquire_trip_waveform(channels, stop_event=stop)
+                    if drive:
+                        record = self.play_breaker_operation(channels, "trip", stop)
+                    else:
+                        self._release_di_task()
+                        record = acquire_trip_waveform(channels, stop_event=stop)
                     self._store_op_record("trip", record)
                 except OperationStopped:
                     break
                 except Exception as exc:
                     self._set_op_error(str(exc))
-                    log.error("Trip capture in loop failed: %s", exc)
+                    log.error("Trip operation failed: %s", exc)
                 if not self._wait_operation_gap(stop, interval_s, "close", cycle):
                     break
 
-                self._set_op_phase("arm-close", cycle, next_operation="close")
+                self._set_op_phase(
+                    "drive-close" if drive else "arm-close", cycle, next_operation="close"
+                )
                 try:
-                    self._release_di_task()
-                    record = acquire_close_waveform(channels, stop_event=stop)
+                    if drive:
+                        record = self.play_breaker_operation(channels, "close", stop)
+                    else:
+                        self._release_di_task()
+                        record = acquire_close_waveform(channels, stop_event=stop)
                     self._store_op_record("close", record)
                 except OperationStopped:
                     break
                 except Exception as exc:
                     self._set_op_error(str(exc))
-                    log.error("Close capture in loop failed: %s", exc)
+                    log.error("Close operation failed: %s", exc)
                 if not self._wait_operation_gap(stop, interval_s, "trip", cycle):
                     break
         finally:

@@ -733,9 +733,16 @@
 
         function renderNidaqByPort(di, mi, mod, deviceName, device) {
             const { byPort, portNums } = filteredChannelsByPort(mod, deviceName);
-            let html = renderDigitalModuleToolbar(di, mi, mod, portNums, device);
+            const waveOptions = wetDiChannelOptions(mod, deviceName);
+            const lineOptions = waveOptions.length ? waveOptions : (mod.do_channels || []).map(ch => ({
+                label: shortDigitalName(ch),
+                channel: ch,
+            }));
+            let html = renderTripWaveformPanel(di, mi, lineOptions);
+            html += renderDigitalModuleToolbar(di, mi, mod, portNums, device);
             if (!portNums.length) {
-                return '<p style="color:#888;padding:12px;">No lines selected. Use <strong>Select Ports</strong> tab.</p>';
+                html += '<p style="color:#888;padding:12px;">No lines selected. Use <strong>Select Ports</strong> tab.</p>';
+                return html;
             }
             for (const pn of portNums) {
                 html += `<div class="port-section-title">Port ${pn}</div>`;
@@ -784,12 +791,20 @@
             }));
         }
 
+        const TRIP_LINE_MAP = {
+            trip_coil: 'P2.1',
+            switch_52a: 'P5.0',
+            switch_52b: 'P1.7',
+            close_coil: 'P2.0',
+        };
+
         function wetDiChannelOptions(mod, deviceName) {
             const doCh = digitalChannelsForModule(mod);
             const rows = (DAQ_USB_CONFIG.DI_WET || []).flatMap(g => g.rows || []);
             return rows.map(row => ({
                 label: `Ch${row.ch} ${row.net} ${row.niLine}`,
                 channel: resolveNiChannel(deviceName, doCh, row.niLine),
+                niLine: row.niLine,
             })).filter(opt => opt.channel);
         }
 
@@ -801,7 +816,14 @@
                 ['close_coil', 'Close coil — low on trip, 10 ms pulse on close'],
             ];
             const selects = roles.map(([key, label], roleIdx) => {
-                const pick = Math.min(roleIdx, Math.max(options.length - 1, 0));
+                const want = (TRIP_LINE_MAP[key] || '').toUpperCase();
+                const mapped = options.findIndex(opt =>
+                    String(opt.niLine || '').toUpperCase() === want
+                    || String(opt.label || '').toUpperCase().endsWith(want)
+                );
+                const pick = mapped >= 0
+                    ? mapped
+                    : Math.min(roleIdx, Math.max(options.length - 1, 0));
                 const opts = options.map((opt, oi) =>
                     `<option value="${escAttr(opt.channel)}" ${oi === pick ? 'selected' : ''}>${escAttr(opt.label)}</option>`
                 ).join('');
@@ -816,16 +838,17 @@
             <div class="trip-wave-panel" id="trip_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
                     <span style="color:#00d4ff;font-size:13px;">Trip / close · 4 digital inputs</span>
-                    <button class="btn-secondary btn-sm" onclick="previewDiWaveform(${di},${mi},'trip')">Expected trip</button>
-                    <button class="btn-secondary btn-sm" onclick="previewDiWaveform(${di},${mi},'close')">Expected close</button>
+                    <button class="btn-warning btn-sm" id="op_apply_trip_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'trip')">Apply trip</button>
+                    <button class="btn-warning btn-sm" id="op_apply_close_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'close')">Apply close</button>
                     <button class="btn-primary btn-sm" id="op_start_${di}_${mi}" onclick="startOperationLoop(${di},${mi})">Start loop · 30 s</button>
                     <button class="btn-danger btn-sm" id="op_stop_${di}_${mi}" onclick="stopOperationLoop(${di},${mi})" disabled>Stop</button>
                 </div>
                 <p style="color:#888;font-size:12px;margin:6px 0;">
                     Trip: 10 ms trip pulse, 52A falls with it, 52B rises 100 ms later, close coil stays low.
                     Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip coil stays low.
-                    The loop arms trip, then waits 30 s, arms close, waits 30 s, and repeats.
-                    Lines must be inputs in NI MAX.
+                    Apply trip writes the four lines once. Apply close writes the close pattern once.
+                    Start loop repeats trip, 30 s, close, 30 s. The status line says APPLIED only after the writes succeed.
+                    Ports must be Output in NI MAX.
                 </p>
                 <div class="trip-wave-channels">${selects}</div>
                 <div class="trip-wave-meta" id="op_loop_status_${di}_${mi}"></div>
@@ -933,9 +956,59 @@
             plot.innerHTML = svg;
         }
 
-        async function previewDiWaveform(di, mi, operation) {
-            const result = await apiCall('/api/di/trip-waveform', 'POST', { mode: 'preview', operation });
-            if (result) drawDiWaveform(di, mi, result);
+        async function applyDiWaveform(di, mi, operation) {
+            const status = document.getElementById(`op_loop_status_${di}_${mi}`);
+            const label = operation === 'close' ? 'Close' : 'Trip';
+            const buttons = ['trip', 'close'].map(op => document.getElementById(`op_apply_${op}_${di}_${mi}`));
+            buttons.forEach(btn => { if (btn) btn.disabled = true; });
+            if (status) status.textContent = `${label}: writing the four output lines…`;
+            try {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 15000);
+                let result;
+                try {
+                    const resp = await fetch('/api/di/trip-waveform', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            mode: 'apply',
+                            operation,
+                            device_idx: di,
+                            module_idx: mi,
+                            channels: readTripChannels(di, mi),
+                        }),
+                        signal: controller.signal,
+                    });
+                    const text = await resp.text();
+                    result = text ? JSON.parse(text) : {};
+                    if (!resp.ok || !result.applied) {
+                        const why = result.error || `server rejected apply (${resp.status})`;
+                        const msg = `${label} was NOT applied: ${why}`;
+                        if (status) status.textContent = msg;
+                        showToast(msg, 'error');
+                        return;
+                    }
+                } catch (e) {
+                    const why = e.name === 'AbortError' ? 'timed out' : e.message;
+                    const msg = `${label} was NOT applied: ${why}`;
+                    if (status) status.textContent = msg;
+                    showToast(msg, 'error');
+                    return;
+                } finally {
+                    clearTimeout(timer);
+                }
+                drawDiWaveform(di, mi, result);
+                const used = result.channels_used || {};
+                const lines = Object.entries(used).map(([key, line]) => {
+                    const tail = String(line).split('/').slice(-2).join('/');
+                    return `${key}=${tail}`;
+                }).join(', ');
+                const msg = `${label} APPLIED. Outputs written: ${lines}`;
+                if (status) status.textContent = msg;
+                showToast(msg);
+            } finally {
+                buttons.forEach(btn => { if (btn) btn.disabled = false; });
+            }
         }
 
         function formatLoopStatus(data) {
@@ -944,10 +1017,10 @@
                 if (data.phase === 'wait') {
                     const next = data.next_operation === 'close' ? 'close' : 'trip';
                     text = `Cycle ${data.cycle} · ${next} in ${Number(data.wait_remaining_s || 0).toFixed(0)} s`;
-                } else if (data.phase === 'arm-close') {
-                    text = `Cycle ${data.cycle} · armed for close coil`;
-                } else if (data.phase === 'arm-trip') {
-                    text = `Cycle ${data.cycle} · armed for trip coil`;
+                } else if (data.phase === 'drive-close' || data.phase === 'arm-close') {
+                    text = `Cycle ${data.cycle} · initiating close`;
+                } else if (data.phase === 'drive-trip' || data.phase === 'arm-trip') {
+                    text = `Cycle ${data.cycle} · initiating trip`;
                 } else {
                     text = data.phase || 'Running';
                 }
@@ -1033,10 +1106,7 @@
             const doCh = digitalChannelsForModule(mod);
             const withOhm = mappingUsesOhm(kind);
             const channelCount = collectMappingChannels(mod, deviceName, kind).length;
-            let html = kind === 'DI_WET'
-                ? renderTripWaveformPanel(di, mi, wetDiChannelOptions(mod, deviceName))
-                : '';
-            html += `
+            let html = `
             <div class="dio-module-toolbar">
                 <span style="color:#00d4ff;font-size:13px;">${mappingTabTitle(kind)} · ${channelCount} relay(s)</span>
                 <button class="btn-success btn-sm" onclick="writeMappingTab(${di},${mi},'${deviceName}','${kind}',true)">All True</button>
@@ -1193,11 +1263,14 @@
             const pairs = filterDiRelayPairsBySaved(
                 mod.di_channels || [], device.name, mod.name
             );
+            const lineOptions = diLineOptions(mod);
+            let html = renderTripWaveformPanel(di, mi, lineOptions);
             if (!pairs.length) {
-                return '<p style="color:#888;padding:12px;">No relays selected. Use the <strong>Select</strong> tab.</p>';
+                html += '<p style="color:#888;padding:12px;">No relays selected. Use the <strong>Select</strong> tab.</p>';
+                return html;
             }
             const lineCount = pairs.reduce((n, p) => n + (p.line0 ? 1 : 0) + (p.line1 ? 1 : 0), 0);
-            let html = `
+            html += `
             <div class="dio-module-toolbar">
                 <span style="color:#00d4ff;font-size:13px;">${pairs.length} relay(s) · ${lineCount} line(s)</span>
                 <button class="btn-secondary btn-sm" onclick="readSelectedDIModule(${di},${mi})">Read All</button>
@@ -1247,14 +1320,10 @@
             return `
                 <div class="tabs-usb-view" id="eth_di_tabs_${di}_${mi}">
                     ${v('channels', 'Channels', true)}
-                    ${v('waveform', 'Trip / Close', false)}
                     ${v('select', 'Select', false)}
                 </div>
                 <div id="eth_di_view_channels_${di}_${mi}" class="usb-view-panel active channel-list">
                     ${renderEthernetDiChannels(di, mi, mod, device)}
-                </div>
-                <div id="eth_di_view_waveform_${di}_${mi}" class="usb-view-panel">
-                    ${renderTripWaveformPanel(di, mi, diLineOptions(mod))}
                 </div>
                 <div id="eth_di_view_select_${di}_${mi}" class="usb-view-panel channel-list">
                     ${renderEthernetDiSelectView(di, mi, mod, device)}
