@@ -57,7 +57,16 @@ class CurrentStimulus:
                     f"[{low * MILLIAMPS_TO_AMPS:g}, {high * MILLIAMPS_TO_AMPS:g}] mA"
                 )
             amps.append(value)
-        self._task.write(amps, auto_start=not self._started)
+        # On-demand AO writes one sample and then the task is no longer
+        # running, so the next write must auto-start again. If a device
+        # leaves the task running, fall back to a plain write.
+        try:
+            self._task.write(amps, auto_start=True)
+        except Exception as exc:
+            message = str(exc).lower()
+            if "running" not in message and "-200479" not in message:
+                raise
+            self._task.write(amps, auto_start=False)
         self._started = True
 
     def idle(self) -> None:

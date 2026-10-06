@@ -7,3 +7,4 @@ nidaq_controller/core/__pycache__/*
 *.pywz
 *.pyzw
 *.pyzwz
+nidaq_controller/logs/ats_test_system.log

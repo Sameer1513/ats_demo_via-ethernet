@@ -13420,3 +13420,10 @@ Status Code: -201003. Set port [2] to Output in NI MAX
 2026-10-06 15:17:33 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
 2026-10-06 15:17:33 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
 2026-10-06 15:17:33 | INFO     | __main__ | Detected 0 device(s)
+2026-10-06 18:18:38 | INFO     | app_logging.logger | Logging initialized - Level: INFO, Directory: D:\Software\RM\ats_demo_via-ethernet\nidaq_controller\logs
+2026-10-06 18:18:38 | INFO     | core.task_manager | TaskManager initialized
+2026-10-06 18:18:38 | INFO     | core.device_manager | DeviceManager initialized
+2026-10-06 18:18:38 | INFO     | __main__ | Starting ATS Test System web server...
+2026-10-06 18:18:39 | INFO     | core.device_manager | Discovering NI DAQ devices... (0 found)
+2026-10-06 18:18:39 | INFO     | core.device_manager | Device discovery complete. 0 device(s) found.
+2026-10-06 18:18:39 | INFO     | __main__ | Detected 0 device(s)
