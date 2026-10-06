@@ -38,14 +38,14 @@ class ChannelGroup:
     channels: tuple[MappedChannel, ...]
 
 
-# Sheet block "CC" is the third coil input. It is wired to tc3.
-# NI channel numbers are 1-based: ch 1 is ao0, so ch 5 is ao4.
+# Live signals are tc1, tc2, cc, imtr (see live-api.md).
+# NI-9266 terminals 0, 1, 2, 4 are ao0, ao1, ao2, ao4.
 # imtr is the motor 4-20 mA input (AI-02 steps in mA). The mV rows
 # on that same test are a different stimulus and are not driven here.
 _TC_CURRENT = (
     MappedChannel("ao0", "tc1", "TC1", ("AI-01",)),
     MappedChannel("ao1", "tc2", "TC2", ("AI-01",)),
-    MappedChannel("ao2", "tc3", "CC", ("AI-01",)),
+    MappedChannel("ao2", "cc", "CC", ("AI-01",)),
     MappedChannel("ao4", "imtr", "Motor", ("AI-02",), "mA"),
 )
 

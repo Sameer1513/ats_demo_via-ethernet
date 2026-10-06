@@ -40,6 +40,10 @@ CSV_COLUMNS = (
 )
 
 DEFAULT_RESULTS = Path(__file__).resolve().parents[1] / "logs" / "mvbcm_results.csv"
+# live.json is rewritten about once a second. One second is not enough
+# for a new DC window mean to be published.
+DEFAULT_SETTLE_S = 3.0
+_LIVE_POLL_S = 1.0
 
 
 def steps_for_channel(steps: list[Step], channel: MappedChannel) -> list[Step]:
@@ -151,8 +155,12 @@ def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> lis
             except Exception as exc:
                 _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
                 continue
-            time.sleep(settle)
-            _record(rows, _score(group, channel, step, "individual", board, fetch), on_row)
+            try:
+                payload = _read_settled(fetch, board, settle)
+            except LiveError as exc:
+                _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
+                continue
+            _record(rows, _score_payload(group, channel, step, "individual", payload), on_row)
     return rows
 
 
@@ -183,9 +191,8 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> l
             for channel, step in ready:
                 _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
             continue
-        time.sleep(settle)
         try:
-            payload = fetch(board)
+            payload = _read_settled(fetch, board, settle)
         except LiveError as exc:
             for channel, step in ready:
                 _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
@@ -195,12 +202,42 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> l
     return rows
 
 
-def _score(group, channel, step, phase, board, fetch) -> dict:
+def _live_ts(payload) -> int | None:
     try:
-        payload = fetch(board)
-    except LiveError as exc:
-        return _row(group, channel, step, phase, None, "", "FAIL", str(exc))
-    return _score_payload(group, channel, step, phase, payload)
+        return int(payload.get("ts_ms"))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _read_settled(fetch, board: str, settle: float):
+    """Wait out the live export, then return a sample newer than the write.
+
+    The board publishes `/api/live` about once a second. Reading immediately
+    scores the previous window.
+    """
+    baseline = None
+    try:
+        baseline = _live_ts(fetch(board))
+    except LiveError:
+        baseline = None
+    time.sleep(settle)
+    deadline = time.monotonic() + 4.0
+    last_error = None
+    while True:
+        payload = None
+        try:
+            payload = fetch(board)
+        except LiveError as exc:
+            last_error = exc
+        if payload is not None:
+            ts = _live_ts(payload)
+            if baseline is None or ts is None or ts > baseline:
+                return payload
+        if time.monotonic() >= deadline:
+            if last_error is not None and payload is None:
+                raise last_error
+            raise LiveError("live sample did not update after the output change")
+        time.sleep(_LIVE_POLL_S)
 
 
 def _score_payload(group, channel, step, phase, payload) -> dict:
@@ -299,7 +336,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Run this group id only. Default: every enabled group",
     )
     parser.add_argument("--workbook", type=Path, default=DEFAULT_WORKBOOK)
-    parser.add_argument("--settle", type=float, default=1.0, help="Seconds to wait after each write")
+    parser.add_argument(
+        "--settle",
+        type=float,
+        default=DEFAULT_SETTLE_S,
+        help="Seconds to wait after each write before reading /api/live",
+    )
     parser.add_argument("--timeout", type=float, default=5.0, help="HTTP timeout seconds")
     parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS)
     return parser.parse_args(argv)

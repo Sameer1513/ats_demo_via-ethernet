@@ -1002,7 +1002,7 @@ def api_mvbcm_run():
                     load_steps(),
                     board=board,
                     device=device_name,
-                    settle=1.0,
+                    settle=3.0,
                     timeout=5.0,
                     on_row=_on_row,
                 )
