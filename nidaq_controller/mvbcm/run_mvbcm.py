@@ -87,8 +87,12 @@ def run_groups(
     timeout: float,
     fetch=None,
     stimulus_opener=None,
+    on_row=None,
 ) -> list[dict]:
-    """Drive each group, score the live reading, and return result rows."""
+    """Drive each group, score the live reading, and return result rows.
+
+    ``on_row`` is called with each result dict as soon as it is scored.
+    """
     if fetch is None:
         def fetch(url, _timeout=timeout):
             return fetch_live(url, timeout=_timeout)
@@ -106,7 +110,7 @@ def run_groups(
         try:
             stimulus = stimulus_opener(group, device_name)
             rows.extend(
-                _run_group(group, steps, stimulus, board, settle, fetch)
+                _run_group(group, steps, stimulus, board, settle, fetch, on_row)
             )
         finally:
             if stimulus is not None:
@@ -114,37 +118,41 @@ def run_groups(
     return rows
 
 
-def _run_group(group, steps, stimulus, board, settle, fetch) -> list[dict]:
+def _run_group(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
     rows: list[dict] = []
-    rows.extend(_run_individual(group, steps, stimulus, board, settle, fetch))
-    rows.extend(_run_simultaneous(group, steps, stimulus, board, settle, fetch))
+    rows.extend(_run_individual(group, steps, stimulus, board, settle, fetch, on_row))
+    rows.extend(_run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row))
     return rows
 
 
-def _run_individual(group, steps, stimulus, board, settle, fetch) -> list[dict]:
+def _record(rows: list[dict], row: dict, on_row) -> None:
+    rows.append(row)
+    _print_result(row)
+    if on_row is not None:
+        on_row(row)
+
+
+def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
     rows: list[dict] = []
     for channel in group.channels:
         for step in steps_for_channel(steps, channel):
             blocked = _apply_block(group, step)
             if blocked:
-                rows.append(_row(group, channel, step, "individual", None, "", "FAIL", blocked))
-                _print_result(rows[-1])
+                _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", blocked), on_row)
                 continue
             values = {item.signal: 0.0 for item in group.channels}
             values[channel.signal] = step.input_value
             try:
                 stimulus.write(values)
             except Exception as exc:
-                rows.append(_row(group, channel, step, "individual", None, "", "FAIL", str(exc)))
-                _print_result(rows[-1])
+                _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
                 continue
             time.sleep(settle)
-            rows.append(_score(group, channel, step, "individual", board, fetch))
-            _print_result(rows[-1])
+            _record(rows, _score(group, channel, step, "individual", board, fetch), on_row)
     return rows
 
 
-def _run_simultaneous(group, steps, stimulus, board, settle, fetch) -> list[dict]:
+def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
     buckets: dict[str, list[tuple[MappedChannel, Step]]] = {}
     for channel in group.channels:
         for step in steps_for_channel(steps, channel):
@@ -159,8 +167,7 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch) -> list[dict
         for channel, step in pairs:
             blocked = _apply_block(group, step)
             if blocked:
-                rows.append(_row(group, channel, step, "simultaneous", None, "", "FAIL", blocked))
-                _print_result(rows[-1])
+                _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", blocked), on_row)
                 continue
             values[channel.signal] = step.input_value
             ready.append((channel, step))
@@ -170,20 +177,17 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch) -> list[dict
             stimulus.write(values)
         except Exception as exc:
             for channel, step in ready:
-                rows.append(_row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)))
-                _print_result(rows[-1])
+                _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
             continue
         time.sleep(settle)
         try:
             payload = fetch(board)
         except LiveError as exc:
             for channel, step in ready:
-                rows.append(_row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)))
-                _print_result(rows[-1])
+                _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
             continue
         for channel, step in ready:
-            rows.append(_score_payload(group, channel, step, "simultaneous", payload))
-            _print_result(rows[-1])
+            _record(rows, _score_payload(group, channel, step, "simultaneous", payload), on_row)
     return rows
 
 

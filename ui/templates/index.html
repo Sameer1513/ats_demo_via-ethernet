@@ -163,6 +163,16 @@
         }
         .trip-wave-plot svg { width: 100%; height: 280px; display: block; }
 
+        .mvbcm-panel {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+            padding: 12px 14px; margin-bottom: 12px;
+        }
+        .mvbcm-log {
+            background: #0d1b2a; border-radius: 6px; padding: 8px 10px;
+            margin-top: 8px; max-height: 220px; overflow-y: auto;
+            font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.45;
+        }
+
         .log-container {
             background: #0d1b2a; border-radius: 6px; padding: 12px;
             height: 300px; overflow-y: auto; font-family: 'Courier New', monospace;
@@ -1571,6 +1581,19 @@
             if (!count) return '';
             const unit = mod.ao_output_unit === 'current' ? 'mA' : 'V';
             const rmsLabel = unit === 'mA' ? 'Irms' : 'Vrms';
+            const savedIp = localStorage.getItem('mvbcm_board_ip') || '';
+            const mvbcm = unit === 'mA' ? `
+            <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}">
+                <div class="dio-module-toolbar">
+                    <span style="color:#00d4ff;font-size:13px;">AI-01 · tc1 tc2 tc3</span>
+                    <label style="font-size:12px;color:#aaa;">Board IP
+                        <input id="mvbcm_ip_${di}_${mi}" value="${escAttr(savedIp)}" placeholder="192.168.1.50" style="width:160px;margin-left:6px;">
+                    </label>
+                    <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
+                </div>
+                <div class="trip-wave-meta" id="mvbcm_status_${di}_${mi}">Idle</div>
+                <div class="mvbcm-log" id="mvbcm_log_${di}_${mi}"></div>
+            </div>` : '';
             return `
             <div class="dio-module-toolbar" id="ao_toolbar_${di}_${mi}">
                 <span style="color:#00d4ff;font-size:13px;">Analog Output (${count} ch) · ${unit}</span>
@@ -1610,7 +1633,8 @@
                     <button class="btn-secondary btn-sm" onclick="selectAllAoChannels(${di},${mi},false)">Clear</button>
                     <button class="btn-warning" onclick="writeAOConfigModule(${di},${mi})">Apply Config to Selected</button>
                 </div>
-            </div>`;
+            </div>
+            ${mvbcm}`;
         }
 
         function renderDigitalChannelRow(di, mi, ci, channel, mod, device) {
@@ -1801,8 +1825,95 @@
                 `;
                 panelsContainer.appendChild(panel);
             });
+            resumeMvbcmIfRunning();
+        }
 
+        function escText(s) {
+            return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        }
 
+        function mvbcmRowHtml(row) {
+            const cls = row.result === 'PASS' ? 'log-info' : 'log-error';
+            const note = row.note ? ` (${escText(row.note)})` : '';
+            const measured = row.measured === '' || row.measured == null ? '-' : escText(row.measured);
+            return `<div class="log-entry ${cls}">${escText(row.result)} ${escText(row.test_id)} step ${escText(row.step)} ${escText(row.signal)} ${escText(row.phase)} ${escText(row.stimulus_value)} ${escText(row.unit)} measured ${measured} [${escText(row.min)}, ${escText(row.max)}]${note}</div>`;
+        }
+
+        function paintMvbcm(di, mi, data) {
+            const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
+            const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
+            const btn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            if (!statusEl) return false;
+            if (btn) btn.disabled = !!data.running;
+            const tail = data.error ? ` — ${data.error}` : '';
+            if (data.running) {
+                statusEl.textContent = `Running · ${data.rows.length} result(s)`;
+            } else if (data.done) {
+                statusEl.textContent = `${data.passed} pass, ${data.failed} fail${tail}`;
+            } else {
+                statusEl.textContent = 'Idle';
+            }
+            if (logEl) {
+                logEl.innerHTML = (data.rows || []).map(mvbcmRowHtml).join('');
+                logEl.scrollTop = logEl.scrollHeight;
+            }
+            return true;
+        }
+
+        async function pollMvbcm(di, mi) {
+            if (window._mvbcmPoll) clearInterval(window._mvbcmPoll);
+            const tick = async () => {
+                if (!document.getElementById(`mvbcm_status_${di}_${mi}`)) {
+                    clearInterval(window._mvbcmPoll);
+                    window._mvbcmPoll = null;
+                    return;
+                }
+                const data = await apiCall('/api/mvbcm/status', 'GET', null, 8000, true);
+                if (!data) return;
+                paintMvbcm(di, mi, data);
+                if (!data.running) {
+                    clearInterval(window._mvbcmPoll);
+                    window._mvbcmPoll = null;
+                }
+            };
+            await tick();
+            window._mvbcmPoll = setInterval(tick, 500);
+        }
+
+        async function resumeMvbcmIfRunning() {
+            const data = await apiCall('/api/mvbcm/status', 'GET', null, 4000, true);
+            if (!data || data.device_idx == null) return;
+            if (!data.running && !data.done) return;
+            if (!document.getElementById(`mvbcm_status_${data.device_idx}_${data.module_idx}`)) return;
+            if (data.running) pollMvbcm(data.device_idx, data.module_idx);
+            else paintMvbcm(data.device_idx, data.module_idx, data);
+        }
+
+        async function runMvbcm(di, mi) {
+            const input = document.getElementById(`mvbcm_ip_${di}_${mi}`);
+            const board = (input?.value || '').trim();
+            if (!board) {
+                showToast('Enter the board IP', 'error');
+                return;
+            }
+            localStorage.setItem('mvbcm_board_ip', board);
+            const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
+            if (logEl) logEl.innerHTML = '';
+            const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
+            const btn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            if (statusEl) statusEl.textContent = 'Starting…';
+            if (btn) btn.disabled = true;
+            const started = await apiCall('/api/mvbcm/run', 'POST', {
+                device_idx: di,
+                module_idx: mi,
+                board,
+            }, 15000);
+            if (!started) {
+                if (statusEl) statusEl.textContent = 'Idle';
+                if (btn) btn.disabled = false;
+                return;
+            }
+            pollMvbcm(di, mi);
         }
 
         function updateAoChannelControls(id) {

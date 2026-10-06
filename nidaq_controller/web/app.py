@@ -67,6 +67,19 @@ _ao_controllers: dict = {}
 _ao_module_locks: dict = {}
 _ao_locks_guard = threading.Lock()
 _dio_controllers: dict = {}
+_mvbcm_lock = threading.Lock()
+_mvbcm_state = {
+    'running': False,
+    'done': False,
+    'error': '',
+    'rows': [],
+    'passed': 0,
+    'failed': 0,
+    'device_idx': None,
+    'module_idx': None,
+    'board': '',
+    'device': '',
+}
 
 
 def _ao_task_key(device_idx: int, module_idx: int, channel: str) -> str:
@@ -869,6 +882,151 @@ def api_ao_stop():
         return jsonify({'success': True})
     except Exception as e:
         return _api_error('AO stop', e, di=di, mi=mi)
+
+
+def _board_url(text: str) -> str:
+    """Accept an IP, host:port, or full URL. Bare hosts get port 8080."""
+    raw = (text or '').strip().rstrip('/')
+    if not raw:
+        raise ValueError('Board IP is required')
+    if '://' not in raw:
+        if ':' not in raw:
+            raw = f'{raw}:8080'
+        raw = 'http://' + raw
+    return raw
+
+
+def _stop_module_ao(di: int, mi: int) -> str:
+    """Release this module's analog output so the test task can take it."""
+    _device, module, error = get_controller(di, mi)
+    if error:
+        raise RuntimeError(error)
+    controller = get_ao_controller(di, mi, module)
+    with _ao_module_lock(di, mi):
+        prefix = f"ao_{di}_{mi}_"
+        for task_key in list(_active_ao_tasks.keys()):
+            if task_key.startswith(prefix):
+                controller.stop_output(_active_ao_tasks[task_key])
+                del _active_ao_tasks[task_key]
+        task_manager.clear_tasks_for_device(module.name)
+    return module.name
+
+
+def _mvbcm_counts(rows: list) -> tuple:
+    passed = sum(1 for row in rows if row.get('result') == 'PASS')
+    return passed, len(rows) - passed
+
+
+@app.route('/api/mvbcm/status')
+def api_mvbcm_status():
+    """API: Current AI-01 run, including rows scored so far."""
+    with _mvbcm_lock:
+        passed, failed = _mvbcm_counts(_mvbcm_state['rows'])
+        return jsonify({
+            'running': _mvbcm_state['running'],
+            'done': _mvbcm_state['done'],
+            'error': _mvbcm_state['error'],
+            'rows': list(_mvbcm_state['rows']),
+            'passed': passed,
+            'failed': failed,
+            'device_idx': _mvbcm_state['device_idx'],
+            'module_idx': _mvbcm_state['module_idx'],
+            'board': _mvbcm_state['board'],
+            'device': _mvbcm_state['device'],
+        })
+
+
+@app.route('/api/mvbcm/run', methods=['POST'])
+def api_mvbcm_run():
+    """API: Run the enabled MV BCM group against the board live API."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        di, mi, err = _require_indices(data)
+        if err:
+            return err
+        try:
+            board = _board_url(data.get('board', ''))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        _device, module, error = get_controller(di, mi)
+        if error:
+            return jsonify({'error': error}), 400
+        if '9266' not in (module.product_type or '').upper():
+            return jsonify({'error': 'This test runs on an NI-9266'}), 400
+
+        with _mvbcm_lock:
+            if _mvbcm_state['running']:
+                return jsonify({'error': 'A test is already running'}), 409
+            _mvbcm_state.update({
+                'running': True,
+                'done': False,
+                'error': '',
+                'rows': [],
+                'passed': 0,
+                'failed': 0,
+                'device_idx': di,
+                'module_idx': mi,
+                'board': board,
+                'device': module.name,
+            })
+
+        device_name = module.name
+
+        def _worker():
+            rows = []
+            try:
+                repo_root = Path(__file__).resolve().parents[2]
+                if str(repo_root) not in sys.path:
+                    sys.path.append(str(repo_root))
+                from nidaq_controller.mvbcm.run_mvbcm import (
+                    append_results,
+                    run_groups,
+                    DEFAULT_RESULTS,
+                )
+                from nidaq_controller.mvbcm.sheet import load_steps
+                from nidaq_controller.mvbcm.channel_map import enabled_groups
+
+                _stop_module_ao(di, mi)
+                add_log(f"MV BCM run started on {device_name} -> {board}")
+
+                def _on_row(row):
+                    with _mvbcm_lock:
+                        _mvbcm_state['rows'].append(row)
+
+                rows = run_groups(
+                    enabled_groups(),
+                    load_steps(),
+                    board=board,
+                    device=device_name,
+                    settle=1.0,
+                    timeout=5.0,
+                    on_row=_on_row,
+                )
+                append_results(DEFAULT_RESULTS, rows)
+                passed, failed = _mvbcm_counts(rows)
+                add_log(f"MV BCM run finished: {passed} pass, {failed} fail")
+            except Exception as exc:
+                add_log(f"MV BCM run failed: {exc}", 'ERROR')
+                with _mvbcm_lock:
+                    _mvbcm_state['error'] = str(exc)
+            finally:
+                with _mvbcm_lock:
+                    _mvbcm_state['running'] = False
+                    _mvbcm_state['done'] = True
+
+        threading.Thread(target=_worker, name='mvbcm-run', daemon=True).start()
+        return jsonify({'started': True, 'board': board, 'device': device_name})
+    except Exception as e:
+        with _mvbcm_lock:
+            if _mvbcm_state['running'] and not _mvbcm_state['rows']:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                _mvbcm_state['error'] = str(e)
+        return _api_error('MV BCM run', e, di=di, mi=mi)
 
 
 @app.route('/api/do/write', methods=['POST'])
