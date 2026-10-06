@@ -26,10 +26,8 @@ _COL_DUT_UNIT = "H"
 _COL_MIN = "I"
 _COL_MAX = "J"
 
-DEFAULT_WORKBOOK = Path(
-    r"d:\Logycent Private Limited\Karthigeyan S - Sales & Marketing"
-    r"\Rugged Monitoring\Universal AI Module\MV BCM Project\Testing"
-    r"\MV BCM Test Format - Stepwise_APD.xlsx"
+DEFAULT_WORKBOOK = (
+    Path(__file__).resolve().parents[1] / "MV BCM Test Format - Stepwise_APD.xlsx"
 )
 
 

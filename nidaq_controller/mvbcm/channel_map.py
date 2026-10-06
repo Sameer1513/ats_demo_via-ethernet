@@ -18,6 +18,7 @@ class MappedChannel:
     signal: str
     sheet_label: str
     test_ids: tuple[str, ...]
+    input_unit: str = ""
 
 
 @dataclass(frozen=True)
@@ -38,10 +39,14 @@ class ChannelGroup:
 
 
 # Sheet block "CC" is the third coil input. It is wired to tc3.
+# NI channel numbers are 1-based: ch 1 is ao0, so ch 5 is ao4.
+# imtr is the motor 4-20 mA input (AI-02 steps in mA). The mV rows
+# on that same test are a different stimulus and are not driven here.
 _TC_CURRENT = (
     MappedChannel("ao0", "tc1", "TC1", ("AI-01",)),
     MappedChannel("ao1", "tc2", "TC2", ("AI-01",)),
     MappedChannel("ao2", "tc3", "CC", ("AI-01",)),
+    MappedChannel("ao4", "imtr", "Motor", ("AI-02",), "mA"),
 )
 
 GROUPS: tuple[ChannelGroup, ...] = (

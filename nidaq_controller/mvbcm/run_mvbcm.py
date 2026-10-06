@@ -49,6 +49,10 @@ def steps_for_channel(steps: list[Step], channel: MappedChannel) -> list[Step]:
         for step in steps
         if step.test_id in channel.test_ids
         and objective_has_label(step.objective, channel.sheet_label)
+        and (
+            not channel.input_unit
+            or step.input_unit.strip().lower() == channel.input_unit.lower()
+        )
     ]
     matched.sort(key=lambda step: (step.step_number, step.row))
     return matched
