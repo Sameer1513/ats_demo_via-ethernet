@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 import time
 from datetime import datetime
@@ -18,9 +19,10 @@ from pathlib import Path
 from nidaq_controller.mvbcm.channel_map import ChannelGroup, MappedChannel, enabled_groups
 from nidaq_controller.mvbcm.live import LiveError, fetch_live, field_for_unit, in_limits, measure
 from nidaq_controller.mvbcm.sheet import DEFAULT_WORKBOOK, Step, load_steps, objective_has_label
+from nidaq_controller.mvbcm.sweep import steps_for_sweep
 from nidaq_controller.mvbcm.stimuli.current import CurrentStimulus, find_9266
 from nidaq_controller.mvbcm.stimuli.digital import DigitalStimulus
-from nidaq_controller.mvbcm.stimuli.voltage import VoltageStimulus
+from nidaq_controller.mvbcm.stimuli.voltage import VoltageStimulus, find_9264
 
 CSV_COLUMNS = (
     "group",
@@ -47,7 +49,14 @@ _LIVE_POLL_S = 1.0
 
 
 def steps_for_channel(steps: list[Step], channel: MappedChannel) -> list[Step]:
-    """Sheet rows this channel is responsible for."""
+    """Sheet rows this channel is responsible for.
+
+    A channel with a sweep name uses the generated grid instead of the
+    coarse workbook points.
+    """
+    generated = steps_for_sweep(channel)
+    if generated is not None:
+        return generated
     matched = [
         step
         for step in steps
@@ -78,6 +87,8 @@ def open_stimulus(group: ChannelGroup, device_name: str):
 def resolve_device(group: ChannelGroup, device_arg: str | None) -> str:
     if group.device:
         return group.device
+    if group.kind == "voltage":
+        return find_9264()
     if device_arg:
         return device_arg
     if group.kind == "current":
@@ -151,7 +162,7 @@ def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> lis
             values = {item.signal: 0.0 for item in group.channels}
             values[channel.signal] = step.input_value
             try:
-                stimulus.write(values)
+                stimulus.write(values, frequency=_frequency_hz(step))
             except Exception as exc:
                 _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
                 continue
@@ -186,7 +197,7 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> l
         if not ready:
             continue
         try:
-            stimulus.write(values)
+            stimulus.write(values, frequency=_frequency_hz(ready[0][1]))
         except Exception as exc:
             for channel, step in ready:
                 _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
@@ -261,7 +272,17 @@ def _apply_block(group: ChannelGroup, step: Step) -> str:
         return "row has no input value or limits"
     if group.kind == "current" and step.input_unit.strip().lower() != "ma":
         return f"current group expects mA, got {step.input_unit!r}"
+    if group.kind == "voltage" and not step.input_unit.strip().lower().startswith("mv"):
+        return f"voltage group expects mV, got {step.input_unit!r}"
     return ""
+
+
+def _frequency_hz(step: Step) -> float:
+    """Hz named in the step text. Sheet rows that omit it stay at 50 Hz."""
+    match = re.search(r"(\d+(?:\.\d+)?)\s*Hz", step.condition or "", flags=re.IGNORECASE)
+    if not match:
+        return 50.0
+    return float(match.group(1))
 
 
 def _row(group, channel, step, phase, measured, field, result, note) -> dict:

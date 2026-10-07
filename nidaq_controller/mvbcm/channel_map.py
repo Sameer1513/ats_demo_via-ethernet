@@ -19,6 +19,8 @@ class MappedChannel:
     sheet_label: str
     test_ids: tuple[str, ...]
     input_unit: str = ""
+    scale: float = 1.0
+    sweep: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,11 +44,13 @@ class ChannelGroup:
 # NI-9266 terminals 0, 1, 2, 4 are ao0, ao1, ao2, ao4.
 # imtr is the motor 4-20 mA input (AI-02 steps in mA). The mV rows
 # on that same test are a different stimulus and are not driven here.
+# Sweeps replace the coarse sheet points. Limits stay the sheet full-scale
+# window: ±0.5% of 50 A on the coils, ±1% of 100 A on imtr, ±1% of 20 A on iph.
 _TC_CURRENT = (
-    MappedChannel("ao0", "tc1", "TC1", ("AI-01",)),
-    MappedChannel("ao1", "tc2", "TC2", ("AI-01",)),
-    MappedChannel("ao2", "cc", "CC", ("AI-01",)),
-    MappedChannel("ao4", "imtr", "Motor", ("AI-02",), "mA"),
+    MappedChannel("ao0", "tc1", "TC1", ("AI-01",), sweep="coil_ma"),
+    MappedChannel("ao1", "tc2", "TC2", ("AI-01",), sweep="coil_ma"),
+    MappedChannel("ao2", "cc", "CC", ("AI-01",), sweep="coil_ma"),
+    MappedChannel("ao4", "imtr", "Motor", ("AI-02",), "mA", sweep="imtr_ma"),
 )
 
 GROUPS: tuple[ChannelGroup, ...] = (
@@ -57,8 +61,18 @@ GROUPS: tuple[ChannelGroup, ...] = (
         device=None,
         channels=_TC_CURRENT,
     ),
-    # Next three analog channels. Set kind to "current" or "voltage",
-    # fill channels, then set enabled.
+    ChannelGroup(
+        id="iph_voltage",
+        kind="voltage",
+        enabled=True,
+        device=None,
+        channels=(
+            # 9264 ao0 is terminal 0. The fixture divides by 11, so the
+            # card is driven at 11 times the sheet millivolts.
+            MappedChannel("ao0", "iph", "Load-current", ("AI-03",), "mV RMS", 11.0, "iph_pct"),
+        ),
+    ),
+    # Next analog channels. Set kind, fill channels, then set enabled.
     ChannelGroup(
         id="analog_b",
         kind="",

@@ -8,3 +8,4 @@ nidaq_controller/core/__pycache__/*
 *.pyzw
 *.pyzwz
 nidaq_controller/logs/ats_test_system.log
+nidaq_controller/~$MV BCM Test Format - Stepwise_APD.xlsx

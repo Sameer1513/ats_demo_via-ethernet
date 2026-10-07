@@ -912,6 +912,15 @@ def _stop_module_ao(di: int, mi: int) -> str:
     return module.name
 
 
+def _stop_modules_by_product(token: str) -> None:
+    """Release every module of this product so a second AO task can open."""
+    needle = token.upper()
+    for di, device in enumerate(device_manager.get_all_devices()):
+        for mi, module in enumerate(device.modules):
+            if needle in (module.product_type or '').upper():
+                _stop_module_ao(di, mi)
+
+
 def _mvbcm_counts(rows: list) -> tuple:
     passed = sum(1 for row in rows if row.get('result') == 'PASS')
     return passed, len(rows) - passed
@@ -991,6 +1000,7 @@ def api_mvbcm_run():
                 from nidaq_controller.mvbcm.channel_map import enabled_groups
 
                 _stop_module_ao(di, mi)
+                _stop_modules_by_product('9264')
                 add_log(f"MV BCM run started on {device_name} -> {board}")
 
                 def _on_row(row):

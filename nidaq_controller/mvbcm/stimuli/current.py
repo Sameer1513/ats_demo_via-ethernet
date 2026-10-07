@@ -44,7 +44,7 @@ class CurrentStimulus:
                 "Stop any analog output already running on this module."
             ) from exc
 
-    def write(self, milliamps_by_signal: dict[str, float]) -> None:
+    def write(self, milliamps_by_signal: dict[str, float], frequency: float = 50.0) -> None:
         """Set each channel. Missing signals are written as 0 mA."""
         amps = []
         low, high = DEFAULT_CURRENT_RANGE
