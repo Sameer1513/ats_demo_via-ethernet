@@ -1582,12 +1582,22 @@
             const unit = mod.ao_output_unit === 'current' ? 'mA' : 'V';
             const rmsLabel = unit === 'mA' ? 'Irms' : 'Vrms';
             const savedIp = localStorage.getItem('mvbcm_board_ip') || '';
+            const savedCycles = localStorage.getItem('mvbcm_trip_cycles') || '1';
+            const savedTripClose = localStorage.getItem('mvbcm_trip_close');
+            const tripChecked = savedTripClose === null || savedTripClose === '1' ? 'checked' : '';
             const mvbcm = unit === 'mA' ? `
             <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
                     <span style="color:#00d4ff;font-size:13px;">tc1 tc2 cc imtr 1 mA · iph 10%</span>
                     <label style="font-size:12px;color:#aaa;">Board IP
                         <input id="mvbcm_ip_${di}_${mi}" value="${escAttr(savedIp)}" placeholder="192.168.1.50" style="width:160px;margin-left:6px;">
+                    </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="mvbcm_trip_${di}_${mi}" ${tripChecked}>
+                        Trip/close
+                    </label>
+                    <label style="font-size:12px;color:#aaa;">Cycles
+                        <input type="number" id="mvbcm_cycles_${di}_${mi}" value="${escAttr(savedCycles)}" min="1" step="1" style="width:64px;margin-left:6px;">
                     </label>
                     <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
                 </div>
@@ -1896,17 +1906,34 @@
                 showToast('Enter the board IP', 'error');
                 return;
             }
+            const tripClose = !!document.getElementById(`mvbcm_trip_${di}_${mi}`)?.checked;
+            const cyclesRaw = document.getElementById(`mvbcm_cycles_${di}_${mi}`)?.value;
+            const tripCloseCycles = parseInt(cyclesRaw, 10);
+            if (tripClose && (!Number.isFinite(tripCloseCycles) || tripCloseCycles < 1)) {
+                showToast('Trip/close cycles must be >= 1', 'error');
+                return;
+            }
             localStorage.setItem('mvbcm_board_ip', board);
+            localStorage.setItem('mvbcm_trip_close', tripClose ? '1' : '0');
+            if (Number.isFinite(tripCloseCycles) && tripCloseCycles >= 1) {
+                localStorage.setItem('mvbcm_trip_cycles', String(tripCloseCycles));
+            }
             const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
             if (logEl) logEl.innerHTML = '';
             const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
             const btn = document.getElementById(`mvbcm_run_${di}_${mi}`);
-            if (statusEl) statusEl.textContent = 'Starting…';
+            if (statusEl) {
+                statusEl.textContent = tripClose
+                    ? `Starting… (analog + trip/close ×${tripCloseCycles})`
+                    : 'Starting… (analog only)';
+            }
             if (btn) btn.disabled = true;
             const started = await apiCall('/api/mvbcm/run', 'POST', {
                 device_idx: di,
                 module_idx: mi,
                 board,
+                trip_close: tripClose,
+                trip_close_cycles: tripClose ? tripCloseCycles : 1,
             }, 15000);
             if (!started) {
                 if (statusEl) statusEl.textContent = 'Idle';

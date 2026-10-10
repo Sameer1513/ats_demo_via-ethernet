@@ -178,6 +178,44 @@ def get_dio_controller(device_idx: int, module_idx: int, module):
     return _dio_controllers[key]
 
 
+def _find_trip_dio_indices(prefer_name: str | None = None):
+    """Locate USB trip/close DO module indices (same device Apply trip uses).
+
+    Prefers ``prefer_name`` (e.g. Dev9), then any USB-6509 with DO lines.
+    Returns ``(device_idx, module_idx, module)``.
+    """
+    devices = device_manager.get_all_devices()
+    if not devices:
+        raise RuntimeError("No NI devices discovered for trip/close")
+    candidates = []
+    for di, device in enumerate(devices):
+        modules = list(device.modules or [])
+        if not modules and list(getattr(device, "do_channels", None) or []):
+            # Standalone USB DO device (e.g. USB-6509) with no child modules.
+            modules = [device]
+        for mi, module in enumerate(modules):
+            do_channels = list(getattr(module, "do_channels", None) or [])
+            if not do_channels:
+                continue
+            name = getattr(module, "name", "") or ""
+            product = (getattr(module, "product_type", "") or "").upper()
+            if prefer_name and name != prefer_name and device.name != prefer_name:
+                continue
+            score = len(do_channels)
+            if "6509" in product or "6509" in name.upper():
+                score += 1000
+            if prefer_name and (name == prefer_name or device.name == prefer_name):
+                score += 5000
+            candidates.append((score, di, mi, module))
+    if prefer_name and not candidates:
+        raise RuntimeError(f"No digital module matching {prefer_name!r} for trip/close")
+    if not candidates:
+        raise RuntimeError("No digital-output module found for trip/close (need USB-6509)")
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    _score, di, mi, module = candidates[0]
+    return di, mi, module
+
+
 def get_ao_controller(device_idx: int, module_idx: int, module):
     """Reuse AnalogOutputController per module so AO tasks can be stopped."""
     key = f"{device_idx}_{module_idx}"
@@ -961,6 +999,14 @@ def api_mvbcm_run():
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
+        trip_close = bool(data.get('trip_close', True))
+        try:
+            trip_close_cycles = int(data.get('trip_close_cycles', 1))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'trip_close_cycles must be an integer'}), 400
+        if trip_close and trip_close_cycles < 1:
+            return jsonify({'error': 'trip_close_cycles must be >= 1'}), 400
+
         _device, module, error = get_controller(di, mi)
         if error:
             return jsonify({'error': error}), 400
@@ -984,6 +1030,7 @@ def api_mvbcm_run():
             })
 
         device_name = module.name
+        trip_device = (data.get('trip_device') or '').strip() or None
 
         def _worker():
             rows = []
@@ -998,6 +1045,11 @@ def api_mvbcm_run():
                 )
                 from nidaq_controller.mvbcm.sheet import load_steps
                 from nidaq_controller.mvbcm.channel_map import enabled_groups
+                from nidaq_controller.mvbcm.breaker_ops import (
+                    default_trip_channels,
+                    device_name_from_channels,
+                    run_trip_close_test,
+                )
 
                 _stop_module_ao(di, mi)
                 _stop_modules_by_product('9264')
@@ -1016,6 +1068,36 @@ def api_mvbcm_run():
                     timeout=5.0,
                     on_row=_on_row,
                 )
+
+                if trip_close:
+                    # Same path as Apply trip: shared get_dio_controller +
+                    # apply_breaker_operation on the USB wet-DO module.
+                    channels = default_trip_channels()
+                    prefer = (
+                        trip_device
+                        or device_name_from_channels(channels or {})
+                        or "Dev9"
+                    )
+                    trip_di, trip_mi, trip_mod = _find_trip_dio_indices(prefer)
+                    dio = get_dio_controller(trip_di, trip_mi, trip_mod)
+                    add_log(
+                        f"MV BCM trip/close via Apply-trip path on "
+                        f"{trip_mod.name} ({trip_close_cycles} cycle(s))"
+                    )
+                    breaker_rows = run_trip_close_test(
+                        board,
+                        device=trip_mod.name,
+                        module=trip_mod,
+                        channels=channels,
+                        settle=3.0,
+                        timeout=5.0,
+                        cycles=trip_close_cycles,
+                        on_row=_on_row,
+                        controller_factory=lambda _m: dio,
+                        cleanup=False,
+                    )
+                    rows.extend(breaker_rows)
+
                 append_results(DEFAULT_RESULTS, rows)
                 passed, failed = _mvbcm_counts(rows)
                 add_log(f"MV BCM run finished: {passed} pass, {failed} fail")
@@ -1029,7 +1111,13 @@ def api_mvbcm_run():
                     _mvbcm_state['done'] = True
 
         threading.Thread(target=_worker, name='mvbcm-run', daemon=True).start()
-        return jsonify({'started': True, 'board': board, 'device': device_name})
+        return jsonify({
+            'started': True,
+            'board': board,
+            'device': device_name,
+            'trip_close': trip_close,
+            'trip_close_cycles': trip_close_cycles if trip_close else 0,
+        })
     except Exception as e:
         with _mvbcm_lock:
             if _mvbcm_state['running'] and not _mvbcm_state['rows']:

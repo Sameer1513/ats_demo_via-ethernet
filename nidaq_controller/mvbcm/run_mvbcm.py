@@ -4,6 +4,9 @@ Examples::
 
     .\\.venv\\Scripts\\python.exe -m nidaq_controller.mvbcm.run_mvbcm --board http://192.168.x.x:8080
     .\\.venv\\Scripts\\python.exe -m nidaq_controller.mvbcm.run_mvbcm --board http://192.168.x.x:8080 --device cDAQ1Mod2
+    .\\.venv\\Scripts\\python.exe -m nidaq_controller.mvbcm.run_mvbcm --board http://192.168.x.x:8080 --trip-close
+    .\\.venv\\Scripts\\python.exe -m nidaq_controller.mvbcm.run_mvbcm --board http://192.168.x.x:8080 --trip-close --trip-close-cycles 5
+    .\\.venv\\Scripts\\python.exe -m nidaq_controller.mvbcm.run_mvbcm --board http://192.168.x.x:8080 --trip-close-only --trip-device Dev1
 """
 
 from __future__ import annotations
@@ -16,6 +19,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from nidaq_controller.mvbcm.breaker_ops import (
+    default_trip_channels,
+    device_name_from_channels,
+    load_channels_json,
+    run_trip_close_test,
+)
 from nidaq_controller.mvbcm.channel_map import ChannelGroup, MappedChannel, enabled_groups
 from nidaq_controller.mvbcm.live import LiveError, fetch_live, field_for_unit, in_limits, measure
 from nidaq_controller.mvbcm.sheet import DEFAULT_WORKBOOK, Step, load_steps, objective_has_label
@@ -365,6 +374,33 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--timeout", type=float, default=5.0, help="HTTP timeout seconds")
     parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS)
+    parser.add_argument(
+        "--trip-close",
+        action="store_true",
+        help="After analog groups, apply trip then close and check b7 counters +1",
+    )
+    parser.add_argument(
+        "--trip-close-only",
+        action="store_true",
+        help="Skip analog groups; only run trip/close counter checks",
+    )
+    parser.add_argument(
+        "--trip-device",
+        default=None,
+        help="Digital module name for trip/close (default: first USB-6509 / DO module)",
+    )
+    parser.add_argument(
+        "--trip-channels",
+        type=Path,
+        default=None,
+        help="JSON map of trip_coil/switch_52a/switch_52b/close_coil to DAQmx paths",
+    )
+    parser.add_argument(
+        "--trip-close-cycles",
+        type=int,
+        default=1,
+        help="How many trip+close pairs to run (default 1)",
+    )
     return parser.parse_args(argv)
 
 
@@ -373,19 +409,52 @@ def main(argv: list[str] | None = None) -> int:
     if args.settle < 0:
         print("settle must be >= 0", file=sys.stderr)
         return 2
+    if args.trip_close_cycles < 1:
+        print("trip-close-cycles must be >= 1", file=sys.stderr)
+        return 2
+    run_breaker = args.trip_close or args.trip_close_only
+    rows: list[dict] = []
     try:
-        groups = enabled_groups(args.group)
-        steps = load_steps(args.workbook)
-        rows = run_groups(
-            groups,
-            steps,
-            board=args.board,
-            device=args.device,
-            settle=args.settle,
-            timeout=args.timeout,
-        )
+        if not args.trip_close_only:
+            groups = enabled_groups(args.group)
+            steps = load_steps(args.workbook)
+            rows.extend(
+                run_groups(
+                    groups,
+                    steps,
+                    board=args.board,
+                    device=args.device,
+                    settle=args.settle,
+                    timeout=args.timeout,
+                )
+            )
+        if run_breaker:
+            if args.trip_channels is not None:
+                channels = load_channels_json(args.trip_channels)
+            else:
+                channels = default_trip_channels()
+            trip_device = args.trip_device or device_name_from_channels(channels or {})
+            print(
+                f"group trip_close kind=breaker counter check "
+                f"cycles={args.trip_close_cycles} device={trip_device or 'auto'}"
+            )
+            breaker_rows = run_trip_close_test(
+                args.board,
+                device=trip_device,
+                channels=channels,
+                settle=args.settle,
+                timeout=args.timeout,
+                cycles=args.trip_close_cycles,
+            )
+            for row in breaker_rows:
+                _print_result(row)
+            rows.extend(breaker_rows)
     except (OSError, RuntimeError, ValueError, LiveError) as exc:
         print(str(exc), file=sys.stderr)
+        return 2
+
+    if not rows:
+        print("No tests ran. Enable a group or pass --trip-close / --trip-close-only.", file=sys.stderr)
         return 2
 
     append_results(args.output, rows)

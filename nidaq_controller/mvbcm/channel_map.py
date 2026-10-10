@@ -89,6 +89,8 @@ GROUPS: tuple[ChannelGroup, ...] = (
         device=None,
         channels=(),
     ),
+    # Trip/close counter checks are not sheet-driven. Use
+    # ``run_mvbcm --trip-close`` or ``--trip-close-only`` (see breaker_ops).
 )
 
 

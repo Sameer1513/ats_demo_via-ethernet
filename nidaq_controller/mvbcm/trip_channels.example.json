@@ -1,0 +1,6 @@
+{
+  "trip_coil": "Dev9/port2/line1",
+  "switch_52a": "Dev9/port5/line0",
+  "switch_52b": "Dev9/port4/line7",
+  "close_coil": "Dev9/port2/line0"
+}
