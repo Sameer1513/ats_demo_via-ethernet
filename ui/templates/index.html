@@ -803,6 +803,7 @@
 
         const TRIP_LINE_MAP = {
             trip_coil: 'P2.1',
+            backup_trip_coil: 'P5.1',  // Ch2 DI_14 — pulses with trip
             switch_52a: 'P5.0',
             switch_52b: 'P4.7',  // Ch6 DI_18
             close_coil: 'P2.0',
@@ -821,6 +822,7 @@
         function renderTripWaveformPanel(di, mi, options) {
             const roles = [
                 ['trip_coil', 'Trip coil — 10 ms pulse on trip, low on close'],
+                ['backup_trip_coil', 'Backup trip — same 10 ms pulse with trip'],
                 ['switch_52a', '52A — falls on trip, rises 100 ms into close'],
                 ['switch_52b', '52B — rises 100 ms into trip, falls on close'],
                 ['close_coil', 'Close coil — low on trip, 10 ms pulse on close'],
@@ -847,16 +849,16 @@
             return `
             <div class="trip-wave-panel" id="trip_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
-                    <span style="color:#00d4ff;font-size:13px;">Trip / close · 4 digital inputs</span>
+                    <span style="color:#00d4ff;font-size:13px;">Trip / close · wet digital outputs</span>
                     <button class="btn-warning btn-sm" id="op_apply_trip_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'trip')">Apply trip</button>
                     <button class="btn-warning btn-sm" id="op_apply_close_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'close')">Apply close</button>
                     <button class="btn-primary btn-sm" id="op_start_${di}_${mi}" onclick="startOperationLoop(${di},${mi})">Start loop · 30 s</button>
                     <button class="btn-danger btn-sm" id="op_stop_${di}_${mi}" onclick="stopOperationLoop(${di},${mi})" disabled>Stop</button>
                 </div>
                 <p style="color:#888;font-size:12px;margin:6px 0;">
-                    Trip: 10 ms trip pulse, 52A falls with it, 52B rises 100 ms later, close coil stays low.
-                    Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip coil stays low.
-                    Apply trip writes the four lines once. Apply close writes the close pattern once.
+                    Trip: 10 ms trip + backup-trip pulse together, 52A falls with it, 52B rises 100 ms later, close coil stays low.
+                    Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip/backup coils stay low.
+                    Apply trip writes the lines once. Apply close writes the close pattern once.
                     Start loop repeats trip, 30 s, close, 30 s. The status line says APPLIED only after the writes succeed.
                     Ports must be Output in NI MAX.
                 </p>
@@ -868,7 +870,7 @@
         }
 
         function readTripChannels(di, mi) {
-            const keys = ['trip_coil', 'switch_52a', 'switch_52b', 'close_coil'];
+            const keys = ['trip_coil', 'backup_trip_coil', 'switch_52a', 'switch_52b', 'close_coil'];
             const channels = {};
             for (const key of keys) {
                 const el = document.getElementById(`trip_sel_${di}_${mi}_${key}`);
@@ -1583,7 +1585,10 @@
             const rmsLabel = unit === 'mA' ? 'Irms' : 'Vrms';
             const savedIp = localStorage.getItem('mvbcm_board_ip') || '';
             const savedCycles = localStorage.getItem('mvbcm_trip_cycles') || '1';
+            const savedAnalog = localStorage.getItem('mvbcm_analog');
             const savedTripClose = localStorage.getItem('mvbcm_trip_close');
+            // Default both on when never saved.
+            const analogChecked = savedAnalog === null || savedAnalog === '1' ? 'checked' : '';
             const tripChecked = savedTripClose === null || savedTripClose === '1' ? 'checked' : '';
             const mvbcm = unit === 'mA' ? `
             <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}">
@@ -1593,13 +1598,20 @@
                         <input id="mvbcm_ip_${di}_${mi}" value="${escAttr(savedIp)}" placeholder="192.168.1.50" style="width:160px;margin-left:6px;">
                     </label>
                     <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
-                        <input type="checkbox" id="mvbcm_trip_${di}_${mi}" ${tripChecked}>
+                        <input type="checkbox" id="mvbcm_analog_${di}_${mi}" ${analogChecked}
+                            onchange="onMvbcmModeChange(${di},${mi})">
+                        Analog
+                    </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="mvbcm_trip_${di}_${mi}" ${tripChecked}
+                            onchange="onMvbcmModeChange(${di},${mi})">
                         Trip/close
                     </label>
                     <label style="font-size:12px;color:#aaa;">Cycles
                         <input type="number" id="mvbcm_cycles_${di}_${mi}" value="${escAttr(savedCycles)}" min="1" step="1" style="width:64px;margin-left:6px;">
                     </label>
                     <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
+                    <button class="btn-danger btn-sm" id="mvbcm_stop_${di}_${mi}" onclick="stopMvbcm(${di},${mi})" disabled>Stop</button>
                 </div>
                 <div class="trip-wave-meta" id="mvbcm_status_${di}_${mi}">Idle</div>
                 <div class="mvbcm-log" id="mvbcm_log_${di}_${mi}"></div>
@@ -1852,14 +1864,19 @@
         function paintMvbcm(di, mi, data) {
             const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
             const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
-            const btn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (!statusEl) return false;
-            if (btn) btn.disabled = !!data.running;
+            if (runBtn) runBtn.disabled = !!data.running;
+            if (stopBtn) stopBtn.disabled = !data.running;
+            const stopped = !!(data.stopped || (data.error || '').toLowerCase().includes('stopped'));
             const tail = data.error ? ` — ${data.error}` : '';
             if (data.running) {
                 statusEl.textContent = `Running · ${data.rows.length} result(s)`;
             } else if (data.done) {
-                statusEl.textContent = `${data.passed} pass, ${data.failed} fail${tail}`;
+                statusEl.textContent = stopped
+                    ? `Stopped · ${data.passed} pass, ${data.failed} fail${tail}`
+                    : `${data.passed} pass, ${data.failed} fail${tail}`;
             } else {
                 statusEl.textContent = 'Idle';
             }
@@ -1899,6 +1916,21 @@
             else paintMvbcm(data.device_idx, data.module_idx, data);
         }
 
+        function onMvbcmModeChange(di, mi) {
+            const analogEl = document.getElementById(`mvbcm_analog_${di}_${mi}`);
+            const tripEl = document.getElementById(`mvbcm_trip_${di}_${mi}`);
+            if (!analogEl || !tripEl) return;
+            localStorage.setItem('mvbcm_analog', analogEl.checked ? '1' : '0');
+            localStorage.setItem('mvbcm_trip_close', tripEl.checked ? '1' : '0');
+        }
+
+        function mvbcmModeLabel(analog, tripClose, cycles) {
+            if (analog && tripClose) return `analog + trip/close ×${cycles}`;
+            if (analog) return 'analog only';
+            if (tripClose) return `trip/close ×${cycles}`;
+            return 'nothing selected';
+        }
+
         async function runMvbcm(di, mi) {
             const input = document.getElementById(`mvbcm_ip_${di}_${mi}`);
             const board = (input?.value || '').trim();
@@ -1906,7 +1938,12 @@
                 showToast('Enter the board IP', 'error');
                 return;
             }
+            const analog = !!document.getElementById(`mvbcm_analog_${di}_${mi}`)?.checked;
             const tripClose = !!document.getElementById(`mvbcm_trip_${di}_${mi}`)?.checked;
+            if (!analog && !tripClose) {
+                showToast('Select Analog and/or Trip/close', 'error');
+                return;
+            }
             const cyclesRaw = document.getElementById(`mvbcm_cycles_${di}_${mi}`)?.value;
             const tripCloseCycles = parseInt(cyclesRaw, 10);
             if (tripClose && (!Number.isFinite(tripCloseCycles) || tripCloseCycles < 1)) {
@@ -1914,6 +1951,7 @@
                 return;
             }
             localStorage.setItem('mvbcm_board_ip', board);
+            localStorage.setItem('mvbcm_analog', analog ? '1' : '0');
             localStorage.setItem('mvbcm_trip_close', tripClose ? '1' : '0');
             if (Number.isFinite(tripCloseCycles) && tripCloseCycles >= 1) {
                 localStorage.setItem('mvbcm_trip_cycles', String(tripCloseCycles));
@@ -1921,26 +1959,39 @@
             const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
             if (logEl) logEl.innerHTML = '';
             const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
-            const btn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) {
-                statusEl.textContent = tripClose
-                    ? `Starting… (analog + trip/close ×${tripCloseCycles})`
-                    : 'Starting… (analog only)';
+                statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, tripClose, tripCloseCycles)})`;
             }
-            if (btn) btn.disabled = true;
+            if (runBtn) runBtn.disabled = true;
+            if (stopBtn) stopBtn.disabled = false;
             const started = await apiCall('/api/mvbcm/run', 'POST', {
                 device_idx: di,
                 module_idx: mi,
                 board,
+                analog,
                 trip_close: tripClose,
                 trip_close_cycles: tripClose ? tripCloseCycles : 1,
             }, 15000);
             if (!started) {
                 if (statusEl) statusEl.textContent = 'Idle';
-                if (btn) btn.disabled = false;
+                if (runBtn) runBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = true;
                 return;
             }
             pollMvbcm(di, mi);
+        }
+
+        async function stopMvbcm(di, mi) {
+            const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
+            if (stopBtn) stopBtn.disabled = true;
+            const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
+            if (statusEl) statusEl.textContent = 'Stopping…';
+            await apiCall('/api/mvbcm/stop', 'POST', {
+                device_idx: di,
+                module_idx: mi,
+            }, 8000);
         }
 
         function updateAoChannelControls(id) {

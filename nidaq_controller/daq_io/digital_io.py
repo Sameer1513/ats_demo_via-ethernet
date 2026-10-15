@@ -1037,10 +1037,11 @@ class DigitalIOController:
                                 operation: str,
                                 stop: threading.Event) -> Dict[str, Any]:
         """
-        Drive the four lines through one trip or close.
+        Drive the wet DO lines through one trip or close.
 
         Trip: 52A starts high, trip coil pulses 10 ms, 52A drops with that
         falling edge, 52B rises 100 ms later, close coil stays low.
+        If ``backup_trip_coil`` is in ``channels``, it pulses with the trip coil.
         Close is the mirror. Raises if a line will not write.
         """
         from constants import (
@@ -1059,14 +1060,21 @@ class DigitalIOController:
         )
 
         op = OPERATIONS[operation]
+        backup_key = "backup_trip_coil"
+        has_backup = bool((channels.get(backup_key) or "").strip())
+        active_keys = [
+            key for key in CHANNEL_KEYS
+            if key != backup_key or has_backup
+        ]
         resolved = {
             key: self._match_do_channel(channels.get(key), normalize_physical_channel)
-            for key in CHANNEL_KEYS
+            for key in active_keys
         }
+
         pulse = CHANNEL_KEYS[int(op["pulse_index"])]
         fall = CHANNEL_KEYS[int(op["fall_index"])]
         rise = CHANNEL_KEYS[int(op["rise_index"])]
-        levels = {key: False for key in CHANNEL_KEYS}
+        levels = {key: False for key in active_keys}
         levels[fall] = True
 
         def apply() -> None:
@@ -1074,7 +1082,7 @@ class DigitalIOController:
                 raise OperationStopped()
             # One line per write. USB-6509 rejects a multi-line port task,
             # which is the path that made Apply trip report NOT applied.
-            for key in CHANNEL_KEYS:
+            for key in active_keys:
                 channel = resolved[key]
                 if self.set_output_line(channel, bool(levels[key])):
                     continue
@@ -1092,9 +1100,13 @@ class DigitalIOController:
         apply()
         hold(TRIP_PRE_TRIGGER_S)
         levels[pulse] = True
+        if operation == "trip" and has_backup:
+            levels[backup_key] = True
         apply()
         hold(TRIP_PULSE_S)
         levels[pulse] = False
+        if has_backup and backup_key in levels:
+            levels[backup_key] = False
         levels[fall] = False
         apply()
         hold(TRIP_OPENING_TRAVEL_S)
@@ -1103,6 +1115,11 @@ class DigitalIOController:
         hold(TRIP_POST_TRIGGER_S)
 
         record = build_close_waveform() if operation == "close" else build_trip_waveform()
+        if not has_backup and isinstance(record.get("channels"), list):
+            record["channels"] = [
+                ch for ch in record["channels"]
+                if ch.get("key") != backup_key and ch.get("name") != backup_key
+            ]
         record["mode"] = "driven"
         record["channels_used"] = resolved
         return record

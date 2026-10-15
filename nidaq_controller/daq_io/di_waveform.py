@@ -41,6 +41,7 @@ from core.task_manager import normalize_physical_channel
 
 CHANNEL_KEYS: Tuple[str, ...] = (
     "trip_coil",
+    "backup_trip_coil",
     "switch_52a",
     "switch_52b",
     "close_coil",
@@ -48,6 +49,7 @@ CHANNEL_KEYS: Tuple[str, ...] = (
 
 CHANNEL_LABELS: Dict[str, str] = {
     "trip_coil": "TRIP COIL",
+    "backup_trip_coil": "BACKUP TRIP",
     "switch_52a": "52A SWITCH",
     "switch_52b": "52B SWITCH",
     "close_coil": "CLOSE COIL",
@@ -55,12 +57,14 @@ CHANNEL_LABELS: Dict[str, str] = {
 
 # pulse: channel that pulses. fall: contact that drops when the pulse ends.
 # rise: contact that comes up after travel. idle: stays low.
+# backup_trip_coil (index 1) pulses with trip_coil on trip; stays low on close.
 OPERATIONS: Dict[str, Dict[str, Any]] = {
     "trip": {
         "pulse_index": 0,
-        "fall_index": 1,
-        "rise_index": 2,
-        "idle_index": 3,
+        "backup_pulse_index": 1,
+        "fall_index": 2,
+        "rise_index": 3,
+        "idle_index": 4,
         "pulse_mark": "TRIP",
         "rise_mark": "52B",
         "travel_label": "OPENING TRAVEL",
@@ -72,9 +76,9 @@ OPERATIONS: Dict[str, Dict[str, Any]] = {
         "rise_name": "52B",
     },
     "close": {
-        "pulse_index": 3,
-        "fall_index": 2,
-        "rise_index": 1,
+        "pulse_index": 4,
+        "fall_index": 3,
+        "rise_index": 2,
         "idle_index": 0,
         "pulse_mark": "CLOSE",
         "rise_mark": "52A",
@@ -149,6 +153,9 @@ def _build_operation_waveform(operation: str, sample_rate_hz: float) -> Dict[str
 
     columns = [np.zeros(n, dtype=np.int8) for _ in CHANNEL_KEYS]
     columns[op["pulse_index"]][pulse_rise_i:pulse_fall_i] = 1
+    backup_i = op.get("backup_pulse_index")
+    if backup_i is not None:
+        columns[int(backup_i)][pulse_rise_i:pulse_fall_i] = 1
     columns[op["fall_index"]][:pulse_fall_i] = 1
     columns[op["rise_index"]][contact_rise_i:] = 1
 
@@ -352,8 +359,10 @@ def _require_channels(channels: Dict[str, str]) -> List[str]:
         if not name:
             raise ValueError(f"Missing DI channel for {key}")
         ordered.append(name)
-    if len(set(ordered)) != 4:
-        raise ValueError("Waveform needs 4 different digital input lines")
+    if len(set(ordered)) != len(CHANNEL_KEYS):
+        raise ValueError(
+            f"Waveform needs {len(CHANNEL_KEYS)} different digital lines"
+        )
     return ordered
 
 

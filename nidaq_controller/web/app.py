@@ -68,9 +68,11 @@ _ao_module_locks: dict = {}
 _ao_locks_guard = threading.Lock()
 _dio_controllers: dict = {}
 _mvbcm_lock = threading.Lock()
+_mvbcm_stop = threading.Event()
 _mvbcm_state = {
     'running': False,
     'done': False,
+    'stopped': False,
     'error': '',
     'rows': [],
     'passed': 0,
@@ -972,6 +974,7 @@ def api_mvbcm_status():
         return jsonify({
             'running': _mvbcm_state['running'],
             'done': _mvbcm_state['done'],
+            'stopped': _mvbcm_state.get('stopped', False),
             'error': _mvbcm_state['error'],
             'rows': list(_mvbcm_state['rows']),
             'passed': passed,
@@ -981,6 +984,18 @@ def api_mvbcm_status():
             'board': _mvbcm_state['board'],
             'device': _mvbcm_state['device'],
         })
+
+
+@app.route('/api/mvbcm/stop', methods=['POST'])
+def api_mvbcm_stop():
+    """API: Request stop of the in-flight MV BCM run."""
+    with _mvbcm_lock:
+        running = _mvbcm_state['running']
+    if not running:
+        return jsonify({'stopped': False, 'message': 'No test running'})
+    _mvbcm_stop.set()
+    add_log('MV BCM stop requested')
+    return jsonify({'stopped': True})
 
 
 @app.route('/api/mvbcm/run', methods=['POST'])
@@ -999,7 +1014,14 @@ def api_mvbcm_run():
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
+        # Independent sections: analog and/or trip_close (default both on).
+        if 'analog' in data:
+            run_analog = bool(data.get('analog'))
+        else:
+            run_analog = True
         trip_close = bool(data.get('trip_close', True))
+        if not run_analog and not trip_close:
+            return jsonify({'error': 'Select Analog and/or Trip/close'}), 400
         try:
             trip_close_cycles = int(data.get('trip_close_cycles', 1))
         except (TypeError, ValueError):
@@ -1016,9 +1038,11 @@ def api_mvbcm_run():
         with _mvbcm_lock:
             if _mvbcm_state['running']:
                 return jsonify({'error': 'A test is already running'}), 409
+            _mvbcm_stop.clear()
             _mvbcm_state.update({
                 'running': True,
                 'done': False,
+                'stopped': False,
                 'error': '',
                 'rows': [],
                 'passed': 0,
@@ -1032,8 +1056,12 @@ def api_mvbcm_run():
         device_name = module.name
         trip_device = (data.get('trip_device') or '').strip() or None
 
+        def _should_stop() -> bool:
+            return _mvbcm_stop.is_set()
+
         def _worker():
             rows = []
+            stopped = False
             try:
                 repo_root = Path(__file__).resolve().parents[2]
                 if str(repo_root) not in sys.path:
@@ -1046,6 +1074,8 @@ def api_mvbcm_run():
                 from nidaq_controller.mvbcm.sheet import load_steps
                 from nidaq_controller.mvbcm.channel_map import enabled_groups
                 from nidaq_controller.mvbcm.breaker_ops import (
+                    COUNTER_SETTLE_S,
+                    MvbcmStopped,
                     default_trip_channels,
                     device_name_from_channels,
                     run_trip_close_test,
@@ -1053,23 +1083,33 @@ def api_mvbcm_run():
 
                 _stop_module_ao(di, mi)
                 _stop_modules_by_product('9264')
-                add_log(f"MV BCM run started on {device_name} -> {board}")
+                parts = []
+                if run_analog:
+                    parts.append('analog')
+                if trip_close:
+                    parts.append(f'trip/close×{trip_close_cycles}')
+                add_log(
+                    f"MV BCM run started on {device_name} -> {board} "
+                    f"({', '.join(parts)})"
+                )
 
                 def _on_row(row):
                     with _mvbcm_lock:
                         _mvbcm_state['rows'].append(row)
 
-                rows = run_groups(
-                    enabled_groups(),
-                    load_steps(),
-                    board=board,
-                    device=device_name,
-                    settle=3.0,
-                    timeout=5.0,
-                    on_row=_on_row,
-                )
+                if run_analog:
+                    rows = run_groups(
+                        enabled_groups(),
+                        load_steps(),
+                        board=board,
+                        device=device_name,
+                        settle=3.0,
+                        timeout=5.0,
+                        on_row=_on_row,
+                        should_stop=_should_stop,
+                    )
 
-                if trip_close:
+                if trip_close and not _should_stop():
                     # Same path as Apply trip: shared get_dio_controller +
                     # apply_breaker_operation on the USB wet-DO module.
                     channels = default_trip_channels()
@@ -1084,37 +1124,71 @@ def api_mvbcm_run():
                         f"MV BCM trip/close via Apply-trip path on "
                         f"{trip_mod.name} ({trip_close_cycles} cycle(s))"
                     )
+                    add_log(
+                        f"MV BCM counter settle {COUNTER_SETTLE_S:.0f}s after trip/close"
+                    )
                     breaker_rows = run_trip_close_test(
                         board,
                         device=trip_mod.name,
                         module=trip_mod,
                         channels=channels,
-                        settle=3.0,
+                        settle=COUNTER_SETTLE_S,
                         timeout=5.0,
                         cycles=trip_close_cycles,
                         on_row=_on_row,
                         controller_factory=lambda _m: dio,
                         cleanup=False,
+                        should_stop=_should_stop,
                     )
                     rows.extend(breaker_rows)
+
+                if _should_stop():
+                    stopped = True
+                    raise MvbcmStopped('stopped by user')
 
                 append_results(DEFAULT_RESULTS, rows)
                 passed, failed = _mvbcm_counts(rows)
                 add_log(f"MV BCM run finished: {passed} pass, {failed} fail")
             except Exception as exc:
-                add_log(f"MV BCM run failed: {exc}", 'ERROR')
-                with _mvbcm_lock:
-                    _mvbcm_state['error'] = str(exc)
+                from nidaq_controller.mvbcm.breaker_ops import MvbcmStopped as _Stopped
+                stopped = isinstance(exc, _Stopped) or _should_stop()
+                if stopped:
+                    try:
+                        _stop_module_ao(di, mi)
+                        _stop_modules_by_product('9264')
+                    except Exception:
+                        pass
+                    with _mvbcm_lock:
+                        kept = list(_mvbcm_state['rows'])
+                        _mvbcm_state['error'] = 'stopped by user'
+                        _mvbcm_state['stopped'] = True
+                    add_log(f"MV BCM run stopped ({len(kept)} result(s) kept)")
+                    if kept:
+                        try:
+                            from nidaq_controller.mvbcm.run_mvbcm import (
+                                append_results,
+                                DEFAULT_RESULTS,
+                            )
+                            append_results(DEFAULT_RESULTS, kept)
+                        except Exception:
+                            pass
+                else:
+                    add_log(f"MV BCM run failed: {exc}", 'ERROR')
+                    with _mvbcm_lock:
+                        _mvbcm_state['error'] = str(exc)
             finally:
                 with _mvbcm_lock:
                     _mvbcm_state['running'] = False
                     _mvbcm_state['done'] = True
+                    if stopped:
+                        _mvbcm_state['stopped'] = True
 
         threading.Thread(target=_worker, name='mvbcm-run', daemon=True).start()
         return jsonify({
             'started': True,
             'board': board,
             'device': device_name,
+            'analog': run_analog,
             'trip_close': trip_close,
             'trip_close_cycles': trip_close_cycles if trip_close else 0,
         })

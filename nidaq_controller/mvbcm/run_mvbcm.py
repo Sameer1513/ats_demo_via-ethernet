@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from nidaq_controller.mvbcm.breaker_ops import (
+    MvbcmStopped,
     default_trip_channels,
     device_name_from_channels,
     load_channels_json,
@@ -105,6 +106,11 @@ def resolve_device(group: ChannelGroup, device_arg: str | None) -> str:
     return device_arg or ""
 
 
+def _raise_if_stopped(should_stop) -> None:
+    if should_stop is not None and should_stop():
+        raise MvbcmStopped("stopped by user")
+
+
 def run_groups(
     groups: list[ChannelGroup],
     steps: list[Step],
@@ -116,10 +122,13 @@ def run_groups(
     fetch=None,
     stimulus_opener=None,
     on_row=None,
+    should_stop=None,
 ) -> list[dict]:
     """Drive each group, score the live reading, and return result rows.
 
     ``on_row`` is called with each result dict as soon as it is scored.
+    ``should_stop`` is an optional zero-arg callable; when true, raises
+    ``MvbcmStopped``.
     """
     if fetch is None:
         def fetch(url, _timeout=timeout):
@@ -130,6 +139,7 @@ def run_groups(
 
     rows: list[dict] = []
     for group in groups:
+        _raise_if_stopped(should_stop)
         if not any(steps_for_channel(steps, channel) for channel in group.channels):
             raise RuntimeError(f"Group {group.id!r} matched no sheet rows")
         device_name = resolve_device(group, device)
@@ -138,7 +148,10 @@ def run_groups(
         try:
             stimulus = stimulus_opener(group, device_name)
             rows.extend(
-                _run_group(group, steps, stimulus, board, settle, fetch, on_row)
+                _run_group(
+                    group, steps, stimulus, board, settle, fetch, on_row,
+                    should_stop,
+                )
             )
         finally:
             if stimulus is not None:
@@ -146,10 +159,15 @@ def run_groups(
     return rows
 
 
-def _run_group(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
+def _run_group(group, steps, stimulus, board, settle, fetch, on_row, should_stop=None) -> list[dict]:
     rows: list[dict] = []
-    rows.extend(_run_individual(group, steps, stimulus, board, settle, fetch, on_row))
-    rows.extend(_run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row))
+    rows.extend(
+        _run_individual(group, steps, stimulus, board, settle, fetch, on_row, should_stop)
+    )
+    _raise_if_stopped(should_stop)
+    rows.extend(
+        _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row, should_stop)
+    )
     return rows
 
 
@@ -160,10 +178,11 @@ def _record(rows: list[dict], row: dict, on_row) -> None:
         on_row(row)
 
 
-def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
+def _run_individual(group, steps, stimulus, board, settle, fetch, on_row, should_stop=None) -> list[dict]:
     rows: list[dict] = []
     for channel in group.channels:
         for step in steps_for_channel(steps, channel):
+            _raise_if_stopped(should_stop)
             blocked = _apply_block(group, step)
             if blocked:
                 _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", blocked), on_row)
@@ -176,7 +195,7 @@ def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> lis
                 _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
                 continue
             try:
-                payload = _read_settled(fetch, board, settle)
+                payload = _read_settled(fetch, board, settle, should_stop=should_stop)
             except LiveError as exc:
                 _record(rows, _row(group, channel, step, "individual", None, "", "FAIL", str(exc)), on_row)
                 continue
@@ -184,7 +203,7 @@ def _run_individual(group, steps, stimulus, board, settle, fetch, on_row) -> lis
     return rows
 
 
-def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> list[dict]:
+def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row, should_stop=None) -> list[dict]:
     buckets: dict[str, list[tuple[MappedChannel, Step]]] = {}
     for channel in group.channels:
         for step in steps_for_channel(steps, channel):
@@ -193,6 +212,7 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> l
     rows: list[dict] = []
     ordered = sorted(buckets, key=lambda label: (_step_sort(label), label))
     for label in ordered:
+        _raise_if_stopped(should_stop)
         pairs = buckets[label]
         values = {item.signal: 0.0 for item in group.channels}
         ready: list[tuple[MappedChannel, Step]] = []
@@ -212,7 +232,7 @@ def _run_simultaneous(group, steps, stimulus, board, settle, fetch, on_row) -> l
                 _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
             continue
         try:
-            payload = _read_settled(fetch, board, settle)
+            payload = _read_settled(fetch, board, settle, should_stop=should_stop)
         except LiveError as exc:
             for channel, step in ready:
                 _record(rows, _row(group, channel, step, "simultaneous", None, "", "FAIL", str(exc)), on_row)
@@ -229,7 +249,18 @@ def _live_ts(payload) -> int | None:
         return None
 
 
-def _read_settled(fetch, board: str, settle: float):
+def _sleep_interruptible(seconds: float, should_stop=None) -> None:
+    """Sleep in short slices so Stop can land during settle waits."""
+    deadline = time.monotonic() + max(0.0, seconds)
+    while True:
+        _raise_if_stopped(should_stop)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.2, remaining))
+
+
+def _read_settled(fetch, board: str, settle: float, should_stop=None):
     """Wait out the live export, then return a sample newer than the write.
 
     The board publishes `/api/live` about once a second. Reading immediately
@@ -240,10 +271,11 @@ def _read_settled(fetch, board: str, settle: float):
         baseline = _live_ts(fetch(board))
     except LiveError:
         baseline = None
-    time.sleep(settle)
+    _sleep_interruptible(settle, should_stop)
     deadline = time.monotonic() + 4.0
     last_error = None
     while True:
+        _raise_if_stopped(should_stop)
         payload = None
         try:
             payload = fetch(board)
@@ -433,16 +465,19 @@ def main(argv: list[str] | None = None) -> int:
                 channels = load_channels_json(args.trip_channels)
             else:
                 channels = default_trip_channels()
-            trip_device = args.trip_device or device_name_from_channels(channels or {})
+            trip_device = args.trip_device or device_name_from_channels(channels)
             print(
                 f"group trip_close kind=breaker counter check "
                 f"cycles={args.trip_close_cycles} device={trip_device or 'auto'}"
             )
+            from nidaq_controller.mvbcm.breaker_ops import COUNTER_SETTLE_S
+            breaker_settle = max(float(args.settle), COUNTER_SETTLE_S)
+            print(f"breaker counter settle={breaker_settle:.0f}s after trip/close")
             breaker_rows = run_trip_close_test(
                 args.board,
                 device=trip_device,
                 channels=channels,
-                settle=args.settle,
+                settle=breaker_settle,
                 timeout=args.timeout,
                 cycles=args.trip_close_cycles,
             )
