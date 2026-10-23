@@ -1014,20 +1014,37 @@ def api_mvbcm_run():
         except ValueError as exc:
             return jsonify({'error': str(exc)}), 400
 
-        # Independent sections: analog and/or trip_close (default both on).
+        # Independent sections: analog / CT / trip_close / di_check.
         if 'analog' in data:
             run_analog = bool(data.get('analog'))
         else:
             run_analog = True
+        run_ct = bool(data.get('ct', False))
         trip_close = bool(data.get('trip_close', True))
-        if not run_analog and not trip_close:
-            return jsonify({'error': 'Select Analog and/or Trip/close'}), 400
+        run_di = bool(data.get('di_check', False))
+        run_fault = bool(data.get('fault_trip_close', False))
+        if not run_analog and not run_ct and not trip_close and not run_di and not run_fault:
+            return jsonify({
+                'error': 'Select Analog, CT, Trip/close, DI check, and/or Fault trip/close',
+            }), 400
         try:
             trip_close_cycles = int(data.get('trip_close_cycles', 1))
         except (TypeError, ValueError):
             return jsonify({'error': 'trip_close_cycles must be an integer'}), 400
         if trip_close and trip_close_cycles < 1:
             return jsonify({'error': 'trip_close_cycles must be >= 1'}), 400
+        try:
+            di_cycles = int(data.get('di_cycles', 1))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'di_cycles must be an integer'}), 400
+        if run_di and di_cycles < 1:
+            return jsonify({'error': 'di_cycles must be >= 1'}), 400
+        try:
+            fault_cycles = int(data.get('fault_cycles', 1))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'fault_cycles must be an integer'}), 400
+        if run_fault and fault_cycles < 1:
+            return jsonify({'error': 'fault_cycles must be >= 1'}), 400
 
         _device, module, error = get_controller(di, mi)
         if error:
@@ -1080,12 +1097,24 @@ def api_mvbcm_run():
                     device_name_from_channels,
                     run_trip_close_test,
                 )
+                from nidaq_controller.mvbcm.ct_ops import run_ct_peak_test
+                from nidaq_controller.mvbcm.di_ops import DI_SETTLE_S, run_di_check_test
+                from nidaq_controller.mvbcm.fault_ops import (
+                    FAULT_EVENT_WAIT_S,
+                    run_fault_trip_close_test,
+                )
 
                 _stop_module_ao(di, mi)
                 _stop_modules_by_product('9264')
                 parts = []
                 if run_analog:
                     parts.append('analog')
+                if run_ct:
+                    parts.append('CT')
+                if run_di:
+                    parts.append(f'DI check×{di_cycles}')
+                if run_fault:
+                    parts.append(f'fault trip/close×{fault_cycles}')
                 if trip_close:
                     parts.append(f'trip/close×{trip_close_cycles}')
                 add_log(
@@ -1108,6 +1137,82 @@ def api_mvbcm_run():
                         on_row=_on_row,
                         should_stop=_should_stop,
                     )
+
+                if run_ct and not _should_stop():
+                    from nidaq_controller.mvbcm.stimuli.voltage import find_9264
+                    ct_device = find_9264()
+                    add_log(
+                        f"MV BCM CT (MTR-03 peak + AI-02 AC V) "
+                        f"on {ct_device} ao0"
+                    )
+                    _stop_module_ao(di, mi)
+                    _stop_modules_by_product('9264')
+                    ct_rows = run_ct_peak_test(
+                        board,
+                        device=ct_device,
+                        settle=3.0,
+                        timeout=5.0,
+                        on_row=_on_row,
+                        should_stop=_should_stop,
+                    )
+                    rows.extend(ct_rows)
+
+                if run_di and not _should_stop():
+                    channels = default_trip_channels()
+                    prefer = (
+                        trip_device
+                        or device_name_from_channels(channels or {})
+                        or "Dev9"
+                    )
+                    trip_di, trip_mi, trip_mod = _find_trip_dio_indices(prefer)
+                    dio = get_dio_controller(trip_di, trip_mi, trip_mod)
+                    add_log(
+                        f"MV BCM DI check USB2 wet Ch1/2/3/4/6 on "
+                        f"{trip_mod.name} ({di_cycles} cycle(s), "
+                        f"settle {DI_SETTLE_S:.0f}s)"
+                    )
+                    di_rows = run_di_check_test(
+                        board,
+                        device=trip_mod.name,
+                        module=trip_mod,
+                        channels=channels,
+                        settle=DI_SETTLE_S,
+                        timeout=5.0,
+                        cycles=di_cycles,
+                        on_row=_on_row,
+                        controller_factory=lambda _m: dio,
+                        cleanup=False,
+                        should_stop=_should_stop,
+                    )
+                    rows.extend(di_rows)
+
+                if run_fault and not _should_stop():
+                    channels = default_trip_channels()
+                    prefer = (
+                        trip_device
+                        or device_name_from_channels(channels or {})
+                        or "Dev9"
+                    )
+                    trip_di, trip_mi, trip_mod = _find_trip_dio_indices(prefer)
+                    dio = get_dio_controller(trip_di, trip_mi, trip_mod)
+                    add_log(
+                        f"MV BCM fault trip/close on {trip_mod.name} "
+                        f"({fault_cycles} cycle(s), counter wait "
+                        f"{FAULT_EVENT_WAIT_S:.0f}s)"
+                    )
+                    fault_rows = run_fault_trip_close_test(
+                        board,
+                        device=trip_mod.name,
+                        module=trip_mod,
+                        channels=channels,
+                        timeout=30.0,
+                        cycles=fault_cycles,
+                        on_row=_on_row,
+                        controller_factory=lambda _m: dio,
+                        cleanup=False,
+                        should_stop=_should_stop,
+                    )
+                    rows.extend(fault_rows)
 
                 if trip_close and not _should_stop():
                     # Same path as Apply trip: shared get_dio_controller +
@@ -1189,6 +1294,11 @@ def api_mvbcm_run():
             'board': board,
             'device': device_name,
             'analog': run_analog,
+            'ct': run_ct,
+            'di_check': run_di,
+            'di_cycles': di_cycles if run_di else 0,
+            'fault_trip_close': run_fault,
+            'fault_cycles': fault_cycles if run_fault else 0,
             'trip_close': trip_close,
             'trip_close_cycles': trip_close_cycles if trip_close else 0,
         })
@@ -1414,7 +1524,7 @@ def api_operation_loop_status():
 
 @app.route('/api/di/operation-loop/start', methods=['POST'])
 def api_operation_loop_start():
-    """API: Loop trip then close, 30 s apart."""
+    """API: Loop trip then close, ``interval_s`` apart (default OPERATION_INTERVAL_S)."""
     di = mi = None
     try:
         di, mi, controller, data = _operation_loop_controller()

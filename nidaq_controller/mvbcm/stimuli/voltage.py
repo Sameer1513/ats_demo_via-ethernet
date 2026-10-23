@@ -70,6 +70,32 @@ class VoltageStimulus:
                     f"[{self._low:g}, {self._high:g}] V"
                 )
             peaks.append(peak)
+        self._write_peaks(peaks, frequency)
+
+    def write_peak_volts(
+        self, volts_peak_by_signal: dict[str, float], frequency: float = 50.0,
+    ) -> None:
+        """Drive each channel as a sine. Values are card volts **peak** (UI Direct AC).
+
+        ``MappedChannel.scale`` is ignored — same as Apply Config AC / direct.
+        Missing signals are written as 0 V.
+        """
+        if frequency <= 0:
+            raise ValueError(f"frequency must be positive, got {frequency}")
+        peaks = []
+        for channel in self._channels:
+            peak = float(volts_peak_by_signal.get(channel.signal, 0.0))
+            if peak < 0:
+                raise ValueError(f"{channel.signal} peak V must not be negative")
+            if peak > self._high:
+                raise ValueError(
+                    f"{channel.signal} {peak:g} V peak is outside "
+                    f"[{self._low:g}, {self._high:g}] V"
+                )
+            peaks.append(peak)
+        self._write_peaks(peaks, frequency)
+
+    def _write_peaks(self, peaks: list[float], frequency: float) -> None:
         wave = _sine(frequency, peaks)
         self._arm_clock()
         if self._started:
@@ -83,7 +109,7 @@ class VoltageStimulus:
 
     def idle(self) -> None:
         """Drive every channel in the task to 0 V."""
-        self.write({}, frequency=50.0)
+        self.write_peak_volts({}, frequency=50.0)
 
     def close(self) -> None:
         """Zero the outputs and release the module."""

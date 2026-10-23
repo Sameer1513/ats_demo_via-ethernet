@@ -846,20 +846,28 @@
                 <div class="trip-wave-warn" id="${op}_warn_${di}_${mi}"></div>
                 <div class="trip-wave-meta" id="${op}_meta_${di}_${mi}"></div>
                 <div class="trip-wave-plot" id="${op}_plot_${di}_${mi}"></div>`;
+            const savedLoopS = localStorage.getItem('op_loop_interval_s') || '30';
             return `
             <div class="trip-wave-panel" id="trip_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
                     <span style="color:#00d4ff;font-size:13px;">Trip / close · wet digital outputs</span>
                     <button class="btn-warning btn-sm" id="op_apply_trip_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'trip')">Apply trip</button>
                     <button class="btn-warning btn-sm" id="op_apply_close_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'close')">Apply close</button>
-                    <button class="btn-primary btn-sm" id="op_start_${di}_${mi}" onclick="startOperationLoop(${di},${mi})">Start loop · 30 s</button>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        Loop gap (s)
+                        <input type="number" id="op_loop_interval_${di}_${mi}" value="${escAttr(savedLoopS)}"
+                            min="0" step="1" style="width:64px;"
+                            onchange="onOpLoopIntervalChange(${di},${mi})"
+                            oninput="onOpLoopIntervalChange(${di},${mi})">
+                    </label>
+                    <button class="btn-primary btn-sm" id="op_start_${di}_${mi}" onclick="startOperationLoop(${di},${mi})">Start loop · ${escAttr(savedLoopS)} s</button>
                     <button class="btn-danger btn-sm" id="op_stop_${di}_${mi}" onclick="stopOperationLoop(${di},${mi})" disabled>Stop</button>
                 </div>
                 <p style="color:#888;font-size:12px;margin:6px 0;">
                     Trip: 10 ms trip + backup-trip pulse together, 52A falls with it, 52B rises 100 ms later, close coil stays low.
                     Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip/backup coils stay low.
                     Apply trip writes the lines once. Apply close writes the close pattern once.
-                    Start loop repeats trip, 30 s, close, 30 s. The status line says APPLIED only after the writes succeed.
+                    Start loop repeats trip, gap, close, gap (gap is configurable). The status line says APPLIED only after the writes succeed.
                     Ports must be Output in NI MAX.
                 </p>
                 <div class="trip-wave-channels">${selects}</div>
@@ -1088,14 +1096,38 @@
             if (!data.running) clearLoopPoll(di, mi);
         }
 
+        function readOpLoopIntervalS(di, mi) {
+            const el = document.getElementById(`op_loop_interval_${di}_${mi}`);
+            const raw = parseFloat(el?.value);
+            if (!Number.isFinite(raw) || raw < 0) return null;
+            return raw;
+        }
+
+        function onOpLoopIntervalChange(di, mi) {
+            const intervalS = readOpLoopIntervalS(di, mi);
+            const start = document.getElementById(`op_start_${di}_${mi}`);
+            if (intervalS == null) {
+                if (start) start.textContent = 'Start loop';
+                return;
+            }
+            localStorage.setItem('op_loop_interval_s', String(intervalS));
+            if (start) start.textContent = `Start loop · ${intervalS} s`;
+        }
+
         async function startOperationLoop(di, mi) {
+            const intervalS = readOpLoopIntervalS(di, mi);
+            if (intervalS == null) {
+                showToast('Loop gap must be a number >= 0', 'error');
+                return;
+            }
+            localStorage.setItem('op_loop_interval_s', String(intervalS));
             const status = document.getElementById(`op_loop_status_${di}_${mi}`);
-            if (status) status.textContent = 'Starting loop…';
+            if (status) status.textContent = `Starting loop (${intervalS} s gap)…`;
             const result = await apiCall('/api/di/operation-loop/start', 'POST', {
                 device_idx: di,
                 module_idx: mi,
                 channels: readTripChannels(di, mi),
-                interval_s: 30,
+                interval_s: intervalS,
             });
             if (!result) return;
             applyLoopStatus(di, mi, result);
@@ -1585,11 +1617,19 @@
             const rmsLabel = unit === 'mA' ? 'Irms' : 'Vrms';
             const savedIp = localStorage.getItem('mvbcm_board_ip') || '';
             const savedCycles = localStorage.getItem('mvbcm_trip_cycles') || '1';
+            const savedDiTimes = localStorage.getItem('mvbcm_di_times') || '1';
+            const savedFaultCycles = localStorage.getItem('mvbcm_fault_cycles') || '1';
             const savedAnalog = localStorage.getItem('mvbcm_analog');
             const savedTripClose = localStorage.getItem('mvbcm_trip_close');
-            // Default both on when never saved.
+            const savedCt = localStorage.getItem('mvbcm_ct');
+            const savedDi = localStorage.getItem('mvbcm_di_check');
+            const savedFault = localStorage.getItem('mvbcm_fault_trip_close');
+            // Default analog + trip on when never saved; CT / DI / fault off until selected.
             const analogChecked = savedAnalog === null || savedAnalog === '1' ? 'checked' : '';
             const tripChecked = savedTripClose === null || savedTripClose === '1' ? 'checked' : '';
+            const ctChecked = savedCt === '1' ? 'checked' : '';
+            const diChecked = savedDi === '1' ? 'checked' : '';
+            const faultChecked = savedFault === '1' ? 'checked' : '';
             const mvbcm = unit === 'mA' ? `
             <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
@@ -1603,12 +1643,33 @@
                         Analog
                     </label>
                     <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="mvbcm_ct_${di}_${mi}" ${ctChecked}
+                            onchange="onMvbcmModeChange(${di},${mi})">
+                        CT
+                    </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
                         <input type="checkbox" id="mvbcm_trip_${di}_${mi}" ${tripChecked}
                             onchange="onMvbcmModeChange(${di},${mi})">
                         Trip/close
                     </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="mvbcm_di_${di}_${mi}" ${diChecked}
+                            onchange="onMvbcmModeChange(${di},${mi})">
+                        DI check
+                    </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="mvbcm_fault_${di}_${mi}" ${faultChecked}
+                            onchange="onMvbcmModeChange(${di},${mi})">
+                        Fault trip/close
+                    </label>
                     <label style="font-size:12px;color:#aaa;">Cycles
                         <input type="number" id="mvbcm_cycles_${di}_${mi}" value="${escAttr(savedCycles)}" min="1" step="1" style="width:64px;margin-left:6px;">
+                    </label>
+                    <label style="font-size:12px;color:#aaa;">Times
+                        <input type="number" id="mvbcm_di_times_${di}_${mi}" value="${escAttr(savedDiTimes)}" min="1" step="1" style="width:64px;margin-left:6px;">
+                    </label>
+                    <label style="font-size:12px;color:#aaa;">Fault cycles
+                        <input type="number" id="mvbcm_fault_cycles_${di}_${mi}" value="${escAttr(savedFaultCycles)}" min="1" step="1" style="width:64px;margin-left:6px;">
                     </label>
                     <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
                     <button class="btn-danger btn-sm" id="mvbcm_stop_${di}_${mi}" onclick="stopMvbcm(${di},${mi})" disabled>Stop</button>
@@ -1918,17 +1979,26 @@
 
         function onMvbcmModeChange(di, mi) {
             const analogEl = document.getElementById(`mvbcm_analog_${di}_${mi}`);
+            const ctEl = document.getElementById(`mvbcm_ct_${di}_${mi}`);
             const tripEl = document.getElementById(`mvbcm_trip_${di}_${mi}`);
+            const diEl = document.getElementById(`mvbcm_di_${di}_${mi}`);
+            const faultEl = document.getElementById(`mvbcm_fault_${di}_${mi}`);
             if (!analogEl || !tripEl) return;
             localStorage.setItem('mvbcm_analog', analogEl.checked ? '1' : '0');
+            localStorage.setItem('mvbcm_ct', ctEl?.checked ? '1' : '0');
             localStorage.setItem('mvbcm_trip_close', tripEl.checked ? '1' : '0');
+            localStorage.setItem('mvbcm_di_check', diEl?.checked ? '1' : '0');
+            localStorage.setItem('mvbcm_fault_trip_close', faultEl?.checked ? '1' : '0');
         }
 
-        function mvbcmModeLabel(analog, tripClose, cycles) {
-            if (analog && tripClose) return `analog + trip/close ×${cycles}`;
-            if (analog) return 'analog only';
-            if (tripClose) return `trip/close ×${cycles}`;
-            return 'nothing selected';
+        function mvbcmModeLabel(analog, ct, tripClose, cycles, diCheck, diTimes, faultCheck, faultCycles) {
+            const parts = [];
+            if (analog) parts.push('analog');
+            if (ct) parts.push('CT');
+            if (diCheck) parts.push(`DI check ×${diTimes}`);
+            if (faultCheck) parts.push(`fault trip/close ×${faultCycles}`);
+            if (tripClose) parts.push(`trip/close ×${cycles}`);
+            return parts.length ? parts.join(' + ') : 'nothing selected';
         }
 
         async function runMvbcm(di, mi) {
@@ -1939,9 +2009,12 @@
                 return;
             }
             const analog = !!document.getElementById(`mvbcm_analog_${di}_${mi}`)?.checked;
+            const ct = !!document.getElementById(`mvbcm_ct_${di}_${mi}`)?.checked;
             const tripClose = !!document.getElementById(`mvbcm_trip_${di}_${mi}`)?.checked;
-            if (!analog && !tripClose) {
-                showToast('Select Analog and/or Trip/close', 'error');
+            const diCheck = !!document.getElementById(`mvbcm_di_${di}_${mi}`)?.checked;
+            const faultCheck = !!document.getElementById(`mvbcm_fault_${di}_${mi}`)?.checked;
+            if (!analog && !ct && !tripClose && !diCheck && !faultCheck) {
+                showToast('Select Analog, CT, Trip/close, DI check, and/or Fault trip/close', 'error');
                 return;
             }
             const cyclesRaw = document.getElementById(`mvbcm_cycles_${di}_${mi}`)?.value;
@@ -1950,11 +2023,32 @@
                 showToast('Trip/close cycles must be >= 1', 'error');
                 return;
             }
+            const diTimesRaw = document.getElementById(`mvbcm_di_times_${di}_${mi}`)?.value;
+            const diTimes = parseInt(diTimesRaw, 10);
+            if (diCheck && (!Number.isFinite(diTimes) || diTimes < 1)) {
+                showToast('DI check times must be >= 1', 'error');
+                return;
+            }
+            const faultCyclesRaw = document.getElementById(`mvbcm_fault_cycles_${di}_${mi}`)?.value;
+            const faultCycles = parseInt(faultCyclesRaw, 10);
+            if (faultCheck && (!Number.isFinite(faultCycles) || faultCycles < 1)) {
+                showToast('Fault trip/close cycles must be >= 1', 'error');
+                return;
+            }
             localStorage.setItem('mvbcm_board_ip', board);
             localStorage.setItem('mvbcm_analog', analog ? '1' : '0');
+            localStorage.setItem('mvbcm_ct', ct ? '1' : '0');
             localStorage.setItem('mvbcm_trip_close', tripClose ? '1' : '0');
+            localStorage.setItem('mvbcm_di_check', diCheck ? '1' : '0');
+            localStorage.setItem('mvbcm_fault_trip_close', faultCheck ? '1' : '0');
             if (Number.isFinite(tripCloseCycles) && tripCloseCycles >= 1) {
                 localStorage.setItem('mvbcm_trip_cycles', String(tripCloseCycles));
+            }
+            if (Number.isFinite(diTimes) && diTimes >= 1) {
+                localStorage.setItem('mvbcm_di_times', String(diTimes));
+            }
+            if (Number.isFinite(faultCycles) && faultCycles >= 1) {
+                localStorage.setItem('mvbcm_fault_cycles', String(faultCycles));
             }
             const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
             if (logEl) logEl.innerHTML = '';
@@ -1962,7 +2056,7 @@
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) {
-                statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, tripClose, tripCloseCycles)})`;
+                statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, ct, tripClose, tripCloseCycles, diCheck, diTimes, faultCheck, faultCycles)})`;
             }
             if (runBtn) runBtn.disabled = true;
             if (stopBtn) stopBtn.disabled = false;
@@ -1971,6 +2065,11 @@
                 module_idx: mi,
                 board,
                 analog,
+                ct,
+                di_check: diCheck,
+                di_cycles: diCheck ? diTimes : 1,
+                fault_trip_close: faultCheck,
+                fault_cycles: faultCheck ? faultCycles : 1,
                 trip_close: tripClose,
                 trip_close_cycles: tripClose ? tripCloseCycles : 1,
             }, 15000);

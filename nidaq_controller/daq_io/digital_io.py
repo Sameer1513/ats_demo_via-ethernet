@@ -1077,41 +1077,58 @@ class DigitalIOController:
         levels = {key: False for key in active_keys}
         levels[fall] = True
 
-        def apply() -> None:
+        def _fail_msg(channel: str) -> str:
+            detail = (self.task_manager.get_last_error() or "").strip()
+            ports = self.get_last_failed_ports()
+            msg = detail or f"Failed to write {channel}"
+            if ports:
+                msg += f". Set port {ports} to Output in NI MAX"
+            return msg
+
+        def apply(keys=None) -> None:
+            """Write only ``keys`` (default: all). Avoids mid-pulse port glitches.
+
+            Trip and close share USB-6509 port2. Rewriting close while trip is
+            high (fresh write_do_line per line) intermittently glitches trip
+            into a second edge — seen as double trip_total over long loops.
+            """
             if stop.is_set():
                 raise OperationStopped()
-            # One line per write. USB-6509 rejects a multi-line port task,
-            # which is the path that made Apply trip report NOT applied.
-            for key in active_keys:
+            for key in (keys if keys is not None else active_keys):
+                if key not in resolved or key not in levels:
+                    continue
                 channel = resolved[key]
                 if self.set_output_line(channel, bool(levels[key])):
                     continue
-                detail = (self.task_manager.get_last_error() or "").strip()
-                ports = self.get_last_failed_ports()
-                msg = detail or f"Failed to write {channel}"
-                if ports:
-                    msg += f". Set port {ports} to Output in NI MAX"
-                raise RuntimeError(msg)
+                raise RuntimeError(_fail_msg(channel))
 
         def hold(seconds: float) -> None:
             if stop.wait(seconds):
                 raise OperationStopped()
 
+        # Initial contacts only (includes close low once — not again mid-pulse).
         apply()
         hold(TRIP_PRE_TRIGGER_S)
         levels[pulse] = True
+        coil_keys = [pulse]
         if operation == "trip" and has_backup:
             levels[backup_key] = True
-        apply()
+            coil_keys.append(backup_key)
+        # Pulse rise: coils only — do not touch close on the same port.
+        apply(coil_keys)
         hold(TRIP_PULSE_S)
         levels[pulse] = False
         if has_backup and backup_key in levels:
             levels[backup_key] = False
         levels[fall] = False
-        apply()
+        # Pulse fall + contact fall; still leave close/rise alone.
+        fall_keys = list(coil_keys)
+        if fall not in fall_keys:
+            fall_keys.append(fall)
+        apply(fall_keys)
         hold(TRIP_OPENING_TRAVEL_S)
         levels[rise] = True
-        apply()
+        apply([rise])
         hold(TRIP_POST_TRIGGER_S)
 
         record = build_close_waveform() if operation == "close" else build_trip_waveform()

@@ -1,0 +1,679 @@
+group,test_id,step,signal,phase,stimulus_value,unit,measured,field,min,max,result,timestamp,note
+trip_close,B7-OPS,trip-1,trip_total,counter,1,count,1028,b7,1028,1028,PASS,2026-10-16T12:40:53,cycle=1/5; settle=15s; before_trip=1027 before_backup=23 after_trip=1028 after_backup=23 after_close=931
+trip_close,B7-OPS,backup_trip-1,backup_trip_total,counter,1,count,23,b7,24,24,FAIL,2026-10-16T12:40:53,"expected 24, got 23; cycle=1/5; settle=15s; before_trip=1027 before_backup=23 after_trip=1028 after_backup=23 after_close=931"
+trip_close,B7-OPS,trip-1,event_created,event,1,event,2010,b7,2010,2010,PASS,2026-10-16T12:40:53,cycle=1/5; refresh_wait=10s; expect_delta=1; events 128->128; max_id 2009->2010
+trip_close,B7-OPS,trip-1,trip_total,counter,1,count,1029,b7,1029,1029,PASS,2026-10-16T12:42:53,cycle=1/5; settle=15s; before_trip=1028 before_backup=23 after_trip=1029 after_backup=23 after_close=931
+trip_close,B7-OPS,backup_trip-1,backup_trip_total,counter,1,count,23,b7,24,24,FAIL,2026-10-16T12:42:53,"expected 24, got 23; cycle=1/5; settle=15s; before_trip=1028 before_backup=23 after_trip=1029 after_backup=23 after_close=931"
+trip_close,B7-OPS,trip-1,event_created,event,1,event,2010,b7,2011,2011,FAIL,2026-10-16T12:42:53,"expected +1 event(s), got max_id_delta=0 count_delta=0; cycle=1/5; refresh_wait=10s; expect_delta=1; events 128->128; max_id 2010->2010"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,58.145,peak_eng,24.000,26.000,FAIL,2026-10-16T13:04:32,"expected [24.0, 26.0] A peak, got 58.1454; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,58.145,peak_eng,49.000,51.000,FAIL,2026-10-16T13:04:35,"expected [49.0, 51.0] A peak, got 58.1454; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,58.145,peak_eng,74.000,76.000,FAIL,2026-10-16T13:04:38,"expected [74.0, 76.0] A peak, got 58.1454; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,58.145,peak_eng,99.000,101.000,FAIL,2026-10-16T13:04:41,"expected [99.0, 101.0] A peak, got 58.1454; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,5.852,peak_eng,24.000,26.000,FAIL,2026-10-16T13:05:22,"expected [24.0, 26.0] A peak, got 5.85201; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,6.038,peak_eng,49.000,51.000,FAIL,2026-10-16T13:05:25,"expected [49.0, 51.0] A peak, got 6.03801; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,4.429,peak_eng,74.000,76.000,FAIL,2026-10-16T13:05:28,"expected [74.0, 76.0] A peak, got 4.42918; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,5.036,peak_eng,99.000,101.000,FAIL,2026-10-16T13:05:31,"expected [99.0, 101.0] A peak, got 5.03619; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,4.086,peak_eng,24.000,26.000,FAIL,2026-10-16T13:08:44,"expected [24.0, 26.0] A peak, got 4.08551; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,3.995,peak_eng,49.000,51.000,FAIL,2026-10-16T13:08:47,"expected [49.0, 51.0] A peak, got 3.99498; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,3.995,peak_eng,74.000,76.000,FAIL,2026-10-16T13:08:50,"expected [74.0, 76.0] A peak, got 3.9949; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,3.995,peak_eng,99.000,101.000,FAIL,2026-10-16T13:08:53,"expected [99.0, 101.0] A peak, got 3.99521; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,6.223,peak_eng,24.000,26.000,FAIL,2026-10-16T13:14:00,"expected [24.0, 26.0] A peak, got 6.22284; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,6.214,peak_eng,49.000,51.000,FAIL,2026-10-16T13:14:03,"expected [49.0, 51.0] A peak, got 6.21368; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,6.214,peak_eng,74.000,76.000,FAIL,2026-10-16T13:14:06,"expected [74.0, 76.0] A peak, got 6.21368; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,6.218,peak_eng,99.000,101.000,FAIL,2026-10-16T13:14:09,"expected [99.0, 101.0] A peak, got 6.21826; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.978,peak_eng,24.000,26.000,PASS,2026-10-16T13:18:38,AC 0.647539 mA peak @ 50 Hz; Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,24.983,peak_eng,49.000,51.000,FAIL,2026-10-16T13:18:42,"expected [49.0, 51.0] A peak, got 24.983; AC 1.29508 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,24.983,peak_eng,74.000,76.000,FAIL,2026-10-16T13:18:45,"expected [74.0, 76.0] A peak, got 24.983; AC 1.94262 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,24.978,peak_eng,99.000,101.000,FAIL,2026-10-16T13:18:48,"expected [99.0, 101.0] A peak, got 24.9784; AC 2.59016 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.983,peak_eng,24.000,26.000,PASS,2026-10-16T13:22:44,AC 0.647539 mA peak @ 50 Hz; Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,24.978,peak_eng,49.000,51.000,FAIL,2026-10-16T13:22:53,"expected [49.0, 51.0] A peak, got 24.9784; AC 1.29508 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,24.978,peak_eng,74.000,76.000,FAIL,2026-10-16T13:23:02,"expected [74.0, 76.0] A peak, got 24.9784; AC 1.94262 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,24.974,peak_eng,99.000,101.000,FAIL,2026-10-16T13:23:11,"expected [99.0, 101.0] A peak, got 24.9739; AC 2.59016 mA peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,43.028,peak_eng,24.000,26.000,FAIL,2026-10-16T13:27:40,"expected [24.0, 26.0] A peak, got 43.0283; AC 0.647539 V peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,43.028,peak_eng,49.000,51.000,FAIL,2026-10-16T13:27:49,"expected [49.0, 51.0] A peak, got 43.0283; AC 1.29508 V peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,43.028,peak_eng,74.000,76.000,FAIL,2026-10-16T13:27:58,"expected [74.0, 76.0] A peak, got 43.0283; AC 1.94262 V peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,43.024,peak_eng,99.000,101.000,FAIL,2026-10-16T13:28:07,"expected [99.0, 101.0] A peak, got 43.0238; AC 2.59016 V peak @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,43.024,peak_eng,24.000,26.000,FAIL,2026-10-16T13:36:46,"expected [24.0, 26.0] A peak, got 43.0238; AC 0.647539 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,43.024,peak_eng,49.000,51.000,FAIL,2026-10-16T13:36:55,"expected [49.0, 51.0] A peak, got 43.0238; AC 1.29508 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,43.028,peak_eng,74.000,76.000,FAIL,2026-10-16T13:37:04,"expected [74.0, 76.0] A peak, got 43.0283; AC 1.94262 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,43.024,peak_eng,99.000,101.000,FAIL,2026-10-16T13:37:13,"expected [99.0, 101.0] A peak, got 43.0238; AC 2.59016 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,17.674,peak_eng,24.000,26.000,FAIL,2026-10-16T13:46:40,"expected [24.0, 26.0] A peak, got 17.6742; AC 0.647539 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,35.348,peak_eng,49.000,51.000,FAIL,2026-10-16T13:46:49,"expected [49.0, 51.0] A peak, got 35.3483; AC 1.29508 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,53.027,peak_eng,74.000,76.000,FAIL,2026-10-16T13:46:58,"expected [74.0, 76.0] A peak, got 53.0271; AC 1.94262 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,70.697,peak_eng,99.000,101.000,FAIL,2026-10-16T13:47:07,"expected [99.0, 101.0] A peak, got 70.6966; AC 2.59016 V @ 50 Hz; Peak within +/-1% FS"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.997,peak_eng,24.000,26.000,PASS,2026-10-16T14:46:08,AC 0.647539 Vrms @ 50 Hz (DAQ peak 0.915759 V); Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,49.993,peak_eng,49.000,51.000,PASS,2026-10-16T14:46:17,AC 1.29508 Vrms @ 50 Hz (DAQ peak 1.83152 V); Peak within +/-1% FS
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,74.986,peak_eng,74.000,76.000,PASS,2026-10-16T14:46:27,AC 1.94262 Vrms @ 50 Hz (DAQ peak 2.74728 V); Peak within +/-1% FS
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,100.001,peak_eng,99.000,101.000,PASS,2026-10-16T14:46:36,AC 2.59016 Vrms @ 50 Hz (DAQ peak 3.66304 V); Peak within +/-1% FS
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.992,peak_eng,24.000,26.000,PASS,2026-10-16T15:01:57,AC 0.647539 Vrms @ 50 Hz (DAQ peak 0.915759 V); Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,49.989,peak_eng,49.000,51.000,PASS,2026-10-16T15:02:05,AC 1.29508 Vrms @ 50 Hz (DAQ peak 1.83152 V); Peak within +/-1% FS
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,74.981,peak_eng,74.000,76.000,PASS,2026-10-16T15:02:15,AC 1.94262 Vrms @ 50 Hz (DAQ peak 2.74728 V); Peak within +/-1% FS
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,99.996,peak_eng,99.000,101.000,PASS,2026-10-16T15:02:23,AC 2.59016 Vrms @ 50 Hz (DAQ peak 3.66304 V); Peak within +/-1% FS
+ct_mv,AI-02,6,imtr,mV,0,A,0.005,rms_eng,-1.000,1.000,PASS,2026-10-16T15:02:32,AC 0 mV RMS @ 50 Hz (DAQ peak 0 V); Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,7,imtr,mV,83.25,A,17.664,rms_eng,24.000,26.000,FAIL,2026-10-16T15:02:41,"expected [24.0, 26.0] A, got 17.6641; AC 83.25 mV RMS @ 50 Hz (DAQ peak 0.91575 V); Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,8,imtr,mV,166.5,A,35.335,rms_eng,49.000,51.000,FAIL,2026-10-16T15:02:50,"expected [49.0, 51.0] A, got 35.3354; AC 166.5 mV RMS @ 50 Hz (DAQ peak 1.8315 V); Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,9,imtr,mV,249.75,A,53.004,rms_eng,74.000,76.000,FAIL,2026-10-16T15:02:59,"expected [74.0, 76.0] A, got 53.0036; AC 249.75 mV RMS @ 50 Hz (DAQ peak 2.74725 V); Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,10,imtr,mV,333,A,70.676,rms_eng,99.000,101.000,FAIL,2026-10-16T15:03:08,"expected [99.0, 101.0] A, got 70.6759; AC 333 mV RMS @ 50 Hz (DAQ peak 3.663 V); Within +/-1% FS for motor instantaneous measurement"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.997,peak_eng,24.000,26.000,PASS,2026-10-16T15:07:40,AC 0.647539 Vrms @ 50 Hz (DAQ peak 0.915759 V); Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,49.993,peak_eng,49.000,51.000,PASS,2026-10-16T15:07:49,AC 1.29508 Vrms @ 50 Hz (DAQ peak 1.83152 V); Peak within +/-1% FS
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,74.990,peak_eng,74.000,76.000,PASS,2026-10-16T15:07:58,AC 1.94262 Vrms @ 50 Hz (DAQ peak 2.74728 V); Peak within +/-1% FS
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,99.996,peak_eng,99.000,101.000,PASS,2026-10-16T15:08:07,AC 2.59016 Vrms @ 50 Hz (DAQ peak 3.66304 V); Peak within +/-1% FS
+ct_mv,AI-02,6,imtr,AC,0,A,0.003,rms_eng,-1.000,1.000,PASS,2026-10-16T15:08:15,AC 0 V peak @ 50 Hz; Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,7,imtr,AC,0.91575,A,17.662,rms_eng,24.000,26.000,FAIL,2026-10-16T15:08:24,"expected [24.0, 26.0] A, got 17.6619; AC 0.91575 V peak @ 50 Hz; Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,8,imtr,AC,1.8315,A,35.337,rms_eng,49.000,51.000,FAIL,2026-10-16T15:08:33,"expected [49.0, 51.0] A, got 35.3369; AC 1.8315 V peak @ 50 Hz; Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,9,imtr,AC,2.74725,A,53.000,rms_eng,74.000,76.000,FAIL,2026-10-16T15:08:42,"expected [74.0, 76.0] A, got 52.9997; AC 2.74725 V peak @ 50 Hz; Within +/-1% FS for motor instantaneous measurement"
+ct_mv,AI-02,10,imtr,AC,3.663,A,70.677,rms_eng,99.000,101.000,FAIL,2026-10-16T15:08:51,"expected [99.0, 101.0] A, got 70.677; AC 3.663 V peak @ 50 Hz; Within +/-1% FS for motor instantaneous measurement"
+ct_peak,MTR-03,1,imtr,peak,0.647539,A peak,24.997,peak_eng,24.000,26.000,PASS,2026-10-16T15:13:07,AC 0.647539 Vrms @ 50 Hz (DAQ peak 0.915759 V); Peak within +/-1% FS
+ct_peak,MTR-03,2,imtr,peak,1.29508,A peak,49.989,peak_eng,49.000,51.000,PASS,2026-10-16T15:13:17,AC 1.29508 Vrms @ 50 Hz (DAQ peak 1.83152 V); Peak within +/-1% FS
+ct_peak,MTR-03,3,imtr,peak,1.94262,A peak,74.986,peak_eng,74.000,76.000,PASS,2026-10-16T15:13:26,AC 1.94262 Vrms @ 50 Hz (DAQ peak 2.74728 V); Peak within +/-1% FS
+ct_peak,MTR-03,4,imtr,peak,2.59016,A peak,100.001,peak_eng,99.000,101.000,PASS,2026-10-16T15:13:35,AC 2.59016 Vrms @ 50 Hz (DAQ peak 3.66304 V); Peak within +/-1% FS
+ct_mv,AI-02,6,imtr,rms,0,A RMS,0.004,rms_eng,-1.000,1.000,PASS,2026-10-16T15:13:44,AC 0 Vrms @ 50 Hz (DAQ peak 0 V); compare rms_eng; Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,7,imtr,rms,0.91575,A RMS,24.980,rms_eng,24.000,26.000,PASS,2026-10-16T15:13:53,AC 0.91575 Vrms @ 50 Hz (DAQ peak 1.29507 V); compare rms_eng; Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,8,imtr,rms,1.8315,A RMS,49.973,rms_eng,49.000,51.000,PASS,2026-10-16T15:14:02,AC 1.8315 Vrms @ 50 Hz (DAQ peak 2.59013 V); compare rms_eng; Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,9,imtr,rms,2.74725,A RMS,74.966,rms_eng,74.000,76.000,PASS,2026-10-16T15:14:11,AC 2.74725 Vrms @ 50 Hz (DAQ peak 3.8852 V); compare rms_eng; Within +/-1% FS for motor instantaneous measurement
+ct_mv,AI-02,10,imtr,rms,3.663,A RMS,99.969,rms_eng,99.000,101.000,PASS,2026-10-16T15:14:20,AC 3.663 Vrms @ 50 Hz (DAQ peak 5.18026 V); compare rms_eng; Within +/-1% FS for motor instantaneous measurement
+di_check,DI-WET,1-1,trip,high,true,active,,digital.active,,,FAIL,2026-10-21T16:44:01,cycle 1/10; USB Ch1 trip; GET http://192.168.2.1:8080/api/live failed: <urlopen error timed out>
+di_check,DI-WET,1-1,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:44:36,cycle 1/10; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-1,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:44:41,cycle 1/10; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-1,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:44:46,cycle 1/10; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-1,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:44:51,cycle 1/10; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-1,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:44:56,cycle 1/10; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-1,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:45:01,cycle 1/10; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-1,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:45:06,cycle 1/10; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-1,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:45:11,cycle 1/10; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-1,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:45:16,cycle 1/10; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-1,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:45:21,cycle 1/10; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-2,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:45:26,cycle 2/10; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-2,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:45:31,cycle 2/10; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-2,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:45:36,cycle 2/10; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-2,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:45:41,cycle 2/10; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,1-1,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:04,cycle 1/10; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-1,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:46:09,cycle 1/10; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-1,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:14,cycle 1/10; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-1,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:46:19,cycle 1/10; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-1,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:24,cycle 1/10; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-1,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:46:30,cycle 1/10; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-1,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:35,cycle 1/10; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-1,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:46:40,cycle 1/10; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-1,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:45,cycle 1/10; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-1,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:46:50,cycle 1/10; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-2,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:46:55,cycle 2/10; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-2,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:00,cycle 2/10; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-2,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:05,cycle 2/10; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-2,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:10,cycle 2/10; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-2,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:15,cycle 2/10; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-2,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:20,cycle 2/10; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-2,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:25,cycle 2/10; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-2,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:30,cycle 2/10; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-2,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:35,cycle 2/10; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-2,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:40,cycle 2/10; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-3,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:45,cycle 3/10; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-3,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:47:50,cycle 3/10; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-3,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:47:55,cycle 3/10; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-3,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:48:01,cycle 3/10; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-3,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:48:06,cycle 3/10; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-3,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:48:11,cycle 3/10; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-3,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:48:16,cycle 3/10; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-3,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:48:21,cycle 3/10; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,1-1,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:48:35,cycle 1/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-1,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:48:40,cycle 1/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-1,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:48:45,cycle 1/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-1,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:48:50,cycle 1/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-1,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:48:55,cycle 1/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-1,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:00,cycle 1/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-1,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:05,cycle 1/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-1,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:10,cycle 1/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-1,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:15,cycle 1/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-1,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:20,cycle 1/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-2,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:26,cycle 2/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-2,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:31,cycle 2/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-2,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:36,cycle 2/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-2,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:41,cycle 2/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-2,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:46,cycle 2/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-2,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:49:51,cycle 2/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-2,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:49:56,cycle 2/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-2,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:01,cycle 2/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-2,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:06,cycle 2/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-2,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:11,cycle 2/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-3,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:16,cycle 3/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-3,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:21,cycle 3/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-3,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:26,cycle 3/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-3,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:31,cycle 3/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-3,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:37,cycle 3/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-3,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:42,cycle 3/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-3,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:47,cycle 3/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-3,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:50:52,cycle 3/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-3,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:50:57,cycle 3/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-3,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:02,cycle 3/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-4,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:07,cycle 4/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-4,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:12,cycle 4/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-4,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:17,cycle 4/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-4,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:22,cycle 4/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-4,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:27,cycle 4/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-4,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:32,cycle 4/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-4,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:37,cycle 4/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-4,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:42,cycle 4/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-4,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:47,cycle 4/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-4,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:51:52,cycle 4/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-5,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:51:58,cycle 5/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-5,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:03,cycle 5/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-5,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:08,cycle 5/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-5,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:13,cycle 5/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-5,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:18,cycle 5/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-5,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:23,cycle 5/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-5,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:28,cycle 5/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-5,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:33,cycle 5/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-5,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:38,cycle 5/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-5,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:43,cycle 5/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-6,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:48,cycle 6/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-6,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:52:53,cycle 6/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-6,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:52:58,cycle 6/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-6,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:03,cycle 6/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-6,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:08,cycle 6/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-6,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:13,cycle 6/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-6,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:18,cycle 6/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-6,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:24,cycle 6/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-6,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:29,cycle 6/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-6,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:34,cycle 6/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-7,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:39,cycle 7/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-7,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:44,cycle 7/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-7,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:49,cycle 7/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-7,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:53:54,cycle 7/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-7,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:53:59,cycle 7/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-7,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:04,cycle 7/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-7,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:54:09,cycle 7/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-7,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:14,cycle 7/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-7,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:54:19,cycle 7/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-7,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:24,cycle 7/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-8,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:54:29,cycle 8/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-8,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:34,cycle 8/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-8,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:54:40,cycle 8/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-8,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:45,cycle 8/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-8,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:54:50,cycle 8/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-8,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:54:55,cycle 8/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-8,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:00,cycle 8/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-8,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:05,cycle 8/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-8,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:10,cycle 8/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-8,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:15,cycle 8/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-9,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:20,cycle 9/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-9,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:25,cycle 9/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-9,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:30,cycle 9/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-9,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:35,cycle 9/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-9,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:40,cycle 9/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-9,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:45,cycle 9/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-9,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:55:50,cycle 9/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-9,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:55:55,cycle 9/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-9,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:56:00,cycle 9/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-9,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:56:06,cycle 9/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-10,trip,high,true,active,,digital.active,,,FAIL,2026-10-21T16:56:15,cycle 10/100; USB Ch1 trip; live sample did not update after the output change
+di_check,DI-WET,1-10,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:56:20,cycle 10/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-10,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:56:25,cycle 10/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-10,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:56:30,cycle 10/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-10,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:56:35,cycle 10/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-10,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:56:40,cycle 10/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-10,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:56:45,cycle 10/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-10,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:56:50,cycle 10/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-10,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:56:55,cycle 10/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-10,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:00,cycle 10/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-11,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:05,cycle 11/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-11,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:10,cycle 11/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-11,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:15,cycle 11/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-11,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:21,cycle 11/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-11,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:26,cycle 11/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-11,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:31,cycle 11/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-11,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:36,cycle 11/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-11,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:41,cycle 11/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-11,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:46,cycle 11/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-11,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:57:51,cycle 11/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-12,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:57:56,cycle 12/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-12,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:01,cycle 12/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-12,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:06,cycle 12/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-12,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:11,cycle 12/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-12,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:16,cycle 12/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-12,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:21,cycle 12/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-12,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:26,cycle 12/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-12,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:31,cycle 12/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-12,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:36,cycle 12/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-12,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:41,cycle 12/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-13,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:46,cycle 13/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-13,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:58:52,cycle 13/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-13,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:58:57,cycle 13/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-13,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:02,cycle 13/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-13,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:07,cycle 13/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-13,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:12,cycle 13/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-13,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:17,cycle 13/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-13,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:22,cycle 13/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-13,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:27,cycle 13/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-13,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:32,cycle 13/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-14,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:37,cycle 14/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-14,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:42,cycle 14/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-14,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:47,cycle 14/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-14,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T16:59:52,cycle 14/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-14,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T16:59:57,cycle 14/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-14,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:02,cycle 14/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-14,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:07,cycle 14/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-14,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:12,cycle 14/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-14,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:18,cycle 14/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-14,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:23,cycle 14/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-15,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:28,cycle 15/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-15,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:33,cycle 15/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-15,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:38,cycle 15/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-15,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:43,cycle 15/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-15,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:48,cycle 15/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-15,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:00:53,cycle 15/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-15,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:00:58,cycle 15/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-15,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:03,cycle 15/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-15,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:08,cycle 15/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-15,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:13,cycle 15/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-16,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:18,cycle 16/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-16,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:23,cycle 16/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-16,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:28,cycle 16/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-16,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:33,cycle 16/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-16,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:39,cycle 16/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-16,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:44,cycle 16/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-16,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:49,cycle 16/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-16,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:01:54,cycle 16/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-16,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:01:59,cycle 16/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-16,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:04,cycle 16/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-17,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:09,cycle 17/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-17,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:14,cycle 17/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-17,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:19,cycle 17/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-17,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:24,cycle 17/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-17,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:29,cycle 17/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-17,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:34,cycle 17/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-17,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:39,cycle 17/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-17,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:44,cycle 17/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-17,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:49,cycle 17/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-17,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:02:54,cycle 17/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-18,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:02:59,cycle 18/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-18,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:05,cycle 18/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-18,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:03:10,cycle 18/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-18,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:15,cycle 18/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-18,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:03:20,cycle 18/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-18,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:25,cycle 18/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-18,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:03:30,cycle 18/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-18,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:35,cycle 18/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-18,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:03:40,cycle 18/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-18,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:45,cycle 18/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-19,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:03:50,cycle 19/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-19,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:03:55,cycle 19/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-19,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:00,cycle 19/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-19,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:05,cycle 19/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-19,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:10,cycle 19/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-19,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:15,cycle 19/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-19,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:20,cycle 19/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-19,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:25,cycle 19/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-19,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:31,cycle 19/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-19,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:36,cycle 19/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-20,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:41,cycle 20/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-20,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:46,cycle 20/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-20,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:04:51,cycle 20/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-20,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:04:56,cycle 20/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-20,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:01,cycle 20/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-20,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:05:06,cycle 20/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-20,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:11,cycle 20/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-20,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:05:16,cycle 20/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-20,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:21,cycle 20/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-20,52b,low,false,active,1,digital.active,0,0,FAIL,2026-10-21T17:05:30,"expected 52b active=0, got 1; cycle 20/100; USB Ch6 52b; board digital.52b active=1 (expect 0); settle=5s"
+di_check,DI-WET,1-21,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:35,cycle 21/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-21,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:05:40,cycle 21/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-21,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:45,cycle 21/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-21,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:05:51,cycle 21/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-21,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:05:56,cycle 21/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-21,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:01,cycle 21/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-21,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:06,cycle 21/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-21,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:11,cycle 21/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-21,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:16,cycle 21/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-21,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:21,cycle 21/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-22,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:26,cycle 22/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-22,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:31,cycle 22/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-22,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:36,cycle 22/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-22,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:41,cycle 22/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-22,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:46,cycle 22/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-22,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:06:51,cycle 22/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-22,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:06:56,cycle 22/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-22,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:01,cycle 22/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-22,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:06,cycle 22/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-22,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:11,cycle 22/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-23,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:16,cycle 23/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-23,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:22,cycle 23/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-23,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:27,cycle 23/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-23,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:32,cycle 23/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-23,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:37,cycle 23/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-23,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:42,cycle 23/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-23,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:47,cycle 23/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-23,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:07:52,cycle 23/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-23,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:07:57,cycle 23/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-23,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:02,cycle 23/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-24,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:07,cycle 24/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-24,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:12,cycle 24/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-24,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:17,cycle 24/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-24,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:22,cycle 24/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-24,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:27,cycle 24/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-24,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:32,cycle 24/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-24,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:37,cycle 24/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-24,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:43,cycle 24/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-24,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:48,cycle 24/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-24,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:08:53,cycle 24/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-25,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:08:58,cycle 25/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-25,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:03,cycle 25/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-25,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:08,cycle 25/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-25,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:13,cycle 25/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-25,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:18,cycle 25/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-25,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:23,cycle 25/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-25,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:28,cycle 25/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-25,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:33,cycle 25/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-25,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:38,cycle 25/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-25,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:43,cycle 25/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-26,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:48,cycle 26/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-26,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:09:53,cycle 26/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-26,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:09:58,cycle 26/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-26,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:04,cycle 26/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-26,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:09,cycle 26/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-26,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:14,cycle 26/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-26,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:19,cycle 26/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-26,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:24,cycle 26/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-26,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:29,cycle 26/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-26,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:34,cycle 26/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-27,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:39,cycle 27/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-27,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:44,cycle 27/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-27,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:49,cycle 27/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-27,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:10:54,cycle 27/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-27,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:10:59,cycle 27/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-27,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:04,cycle 27/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-27,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:11:09,cycle 27/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-27,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:14,cycle 27/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-27,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:11:19,cycle 27/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-27,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:24,cycle 27/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-28,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:11:30,cycle 28/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-28,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:35,cycle 28/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-28,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:11:40,cycle 28/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-28,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:45,cycle 28/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-28,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:11:50,cycle 28/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-28,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:11:55,cycle 28/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-28,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:00,cycle 28/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-28,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:05,cycle 28/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-28,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:10,cycle 28/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-28,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:15,cycle 28/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-29,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:20,cycle 29/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-29,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:25,cycle 29/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-29,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:30,cycle 29/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-29,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:35,cycle 29/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-29,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:40,cycle 29/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-29,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:45,cycle 29/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-29,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:12:50,cycle 29/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-29,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:12:56,cycle 29/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-29,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:01,cycle 29/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-29,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:06,cycle 29/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-30,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:11,cycle 30/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-30,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:16,cycle 30/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-30,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:21,cycle 30/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-30,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:26,cycle 30/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-30,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:31,cycle 30/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-30,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:36,cycle 30/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-30,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:41,cycle 30/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-30,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:46,cycle 30/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-30,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:13:51,cycle 30/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-30,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:13:56,cycle 30/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-31,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:01,cycle 31/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-31,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:06,cycle 31/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-31,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:11,cycle 31/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-31,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:17,cycle 31/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-31,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:22,cycle 31/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-31,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:27,cycle 31/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-31,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:32,cycle 31/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-31,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:37,cycle 31/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-31,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:42,cycle 31/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-31,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:47,cycle 31/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-32,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:14:52,cycle 32/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-32,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:14:57,cycle 32/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-32,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:02,cycle 32/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-32,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:07,cycle 32/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-32,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:12,cycle 32/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-32,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:17,cycle 32/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-32,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:22,cycle 32/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-32,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:27,cycle 32/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-32,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:32,cycle 32/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-32,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:37,cycle 32/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-33,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:42,cycle 33/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-33,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:48,cycle 33/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-33,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:15:53,cycle 33/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-33,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:15:58,cycle 33/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-33,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:03,cycle 33/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-33,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:08,cycle 33/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-33,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:13,cycle 33/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-33,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:18,cycle 33/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-33,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:23,cycle 33/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-33,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:28,cycle 33/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-34,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:33,cycle 34/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-34,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:38,cycle 34/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-34,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:43,cycle 34/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-34,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:48,cycle 34/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-34,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:16:53,cycle 34/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-34,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:16:58,cycle 34/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-34,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:03,cycle 34/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-34,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:08,cycle 34/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-34,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:13,cycle 34/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-34,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:18,cycle 34/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-35,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:24,cycle 35/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-35,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:29,cycle 35/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-35,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:34,cycle 35/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-35,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:39,cycle 35/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-35,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:44,cycle 35/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-35,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:49,cycle 35/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-35,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:17:54,cycle 35/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-35,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:17:59,cycle 35/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-35,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:04,cycle 35/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-35,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:18:09,cycle 35/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-36,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:14,cycle 36/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-36,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:18:19,cycle 36/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-36,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:24,cycle 36/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-36,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:18:29,cycle 36/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-36,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:34,cycle 36/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-36,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:18:39,cycle 36/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-36,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:45,cycle 36/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-36,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:18:50,cycle 36/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-36,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:18:55,cycle 36/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-36,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:00,cycle 36/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-37,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:19:05,cycle 37/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-37,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:10,cycle 37/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-37,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:19:15,cycle 37/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-37,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:20,cycle 37/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-37,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:19:25,cycle 37/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-37,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:30,cycle 37/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-37,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:19:35,cycle 37/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-37,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:40,cycle 37/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-37,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:19:45,cycle 37/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-37,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:19:50,cycle 37/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-38,trip,high,true,active,,digital.active,,,FAIL,2026-10-21T17:19:59,cycle 38/100; USB Ch1 trip; live sample did not update after the output change
+di_check,DI-WET,1-38,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:04,cycle 38/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-38,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:20:09,cycle 38/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-38,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:15,cycle 38/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-38,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:20:20,cycle 38/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-38,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:25,cycle 38/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-38,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:20:30,cycle 38/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-38,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:35,cycle 38/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-38,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:20:40,cycle 38/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-38,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:45,cycle 38/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-39,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:20:50,cycle 39/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-39,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:20:55,cycle 39/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-39,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:00,cycle 39/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-39,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:05,cycle 39/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-39,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:10,cycle 39/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-39,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:15,cycle 39/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-39,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:20,cycle 39/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-39,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:25,cycle 39/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-39,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:30,cycle 39/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-39,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:35,cycle 39/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-40,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:40,cycle 40/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-40,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:46,cycle 40/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-40,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:21:51,cycle 40/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-40,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:21:56,cycle 40/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-40,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:01,cycle 40/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-40,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:06,cycle 40/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-40,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:11,cycle 40/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-40,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:16,cycle 40/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-40,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:21,cycle 40/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-40,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:26,cycle 40/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-41,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:31,cycle 41/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-41,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:36,cycle 41/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-41,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:41,cycle 41/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-41,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:46,cycle 41/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-41,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:22:51,cycle 41/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-41,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:22:56,cycle 41/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-41,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:01,cycle 41/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-41,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:06,cycle 41/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-41,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:12,cycle 41/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-41,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:17,cycle 41/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-42,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:22,cycle 42/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-42,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:27,cycle 42/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-42,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:32,cycle 42/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-42,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:37,cycle 42/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-42,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:42,cycle 42/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-42,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:47,cycle 42/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-42,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:23:52,cycle 42/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-42,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:23:57,cycle 42/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-42,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:02,cycle 42/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-42,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:07,cycle 42/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-43,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:12,cycle 43/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-43,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:17,cycle 43/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-43,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:22,cycle 43/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-43,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:28,cycle 43/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-43,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:33,cycle 43/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-43,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:38,cycle 43/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-43,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:43,cycle 43/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-43,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:48,cycle 43/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-43,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:24:53,cycle 43/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-43,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:24:58,cycle 43/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-44,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:03,cycle 44/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-44,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:08,cycle 44/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-44,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:13,cycle 44/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-44,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:18,cycle 44/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-44,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:23,cycle 44/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-44,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:28,cycle 44/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-44,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:33,cycle 44/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-44,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:38,cycle 44/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-44,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:43,cycle 44/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-44,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:48,cycle 44/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-45,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:25:54,cycle 45/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-45,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:25:59,cycle 45/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-45,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:04,cycle 45/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-45,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:09,cycle 45/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-45,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:14,cycle 45/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-45,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:19,cycle 45/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-45,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:24,cycle 45/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-45,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:29,cycle 45/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-45,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:34,cycle 45/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-45,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:39,cycle 45/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-46,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:44,cycle 46/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-46,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:49,cycle 46/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-46,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:26:54,cycle 46/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-46,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:26:59,cycle 46/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-46,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:04,cycle 46/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-46,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:27:09,cycle 46/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-46,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:14,cycle 46/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-46,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:27:20,cycle 46/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-46,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:25,cycle 46/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-46,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:27:30,cycle 46/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-47,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:35,cycle 47/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-47,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:27:40,cycle 47/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-47,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:45,cycle 47/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-47,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:27:50,cycle 47/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-47,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:27:55,cycle 47/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-47,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:00,cycle 47/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-47,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:05,cycle 47/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-47,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:10,cycle 47/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-47,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:15,cycle 47/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-47,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:20,cycle 47/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-48,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:25,cycle 48/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-48,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:30,cycle 48/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-48,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:35,cycle 48/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-48,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:41,cycle 48/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-48,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:46,cycle 48/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-48,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:28:51,cycle 48/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-48,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:28:56,cycle 48/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-48,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:01,cycle 48/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-48,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:29:06,cycle 48/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-48,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:11,cycle 48/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-49,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:29:16,cycle 49/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-49,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:21,cycle 49/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-49,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:29:26,cycle 49/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-49,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:31,cycle 49/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-49,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:29:36,cycle 49/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-49,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:41,cycle 49/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-49,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:29:46,cycle 49/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-49,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:29:51,cycle 49/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-49,52b,high,true,active,,digital.active,,,FAIL,2026-10-21T17:30:00,cycle 49/100; USB Ch6 52b; live sample did not update after the output change
+di_check,DI-WET,6-49,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:05,cycle 49/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-50,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:30:10,cycle 50/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-50,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:16,cycle 50/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-50,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:30:21,cycle 50/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-50,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:26,cycle 50/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-50,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:30:31,cycle 50/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-50,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:36,cycle 50/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-50,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:30:41,cycle 50/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-50,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:46,cycle 50/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-50,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:30:51,cycle 50/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-50,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:30:56,cycle 50/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-51,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:01,cycle 51/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-51,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:06,cycle 51/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-51,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:11,cycle 51/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-51,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:16,cycle 51/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-51,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:21,cycle 51/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-51,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:26,cycle 51/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-51,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:31,cycle 51/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-51,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:37,cycle 51/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-51,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:42,cycle 51/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-51,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:47,cycle 51/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-52,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:31:52,cycle 52/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-52,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:31:57,cycle 52/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-52,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:02,cycle 52/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-52,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:07,cycle 52/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-52,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:12,cycle 52/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-52,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:17,cycle 52/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-52,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:22,cycle 52/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-52,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:27,cycle 52/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-52,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:32,cycle 52/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-52,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:37,cycle 52/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-53,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:42,cycle 53/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-53,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:47,cycle 53/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-53,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:32:52,cycle 53/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-53,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:32:57,cycle 53/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-53,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:02,cycle 53/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-53,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:08,cycle 53/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-53,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:13,cycle 53/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-53,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:18,cycle 53/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-53,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:23,cycle 53/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-53,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:28,cycle 53/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-54,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:33,cycle 54/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-54,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:38,cycle 54/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-54,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:43,cycle 54/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-54,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:48,cycle 54/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-54,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:33:53,cycle 54/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-54,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:33:58,cycle 54/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-54,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:03,cycle 54/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-54,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:08,cycle 54/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-54,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:13,cycle 54/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+di_check,DI-WET,6-54,52b,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:18,cycle 54/100; USB Ch6 52b; board digital.52b active=0 (expect 0); settle=5s
+di_check,DI-WET,1-55,trip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:23,cycle 55/100; USB Ch1 trip; board digital.trip active=1 (expect 1); settle=5s
+di_check,DI-WET,1-55,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:28,cycle 55/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-55,backtrip,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:34,cycle 55/100; USB Ch2 backtrip; board digital.backtrip active=1 (expect 1); settle=5s
+di_check,DI-WET,2-55,backtrip,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:39,cycle 55/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 0); settle=5s
+di_check,DI-WET,3-55,close,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:44,cycle 55/100; USB Ch3 close; board digital.close active=1 (expect 1); settle=5s
+di_check,DI-WET,3-55,close,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:49,cycle 55/100; USB Ch3 close; board digital.close active=0 (expect 0); settle=5s
+di_check,DI-WET,4-55,52a,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:34:54,cycle 55/100; USB Ch4 52a; board digital.52a active=1 (expect 1); settle=5s
+di_check,DI-WET,4-55,52a,low,false,active,0,digital.active,0,0,PASS,2026-10-21T17:34:59,cycle 55/100; USB Ch4 52a; board digital.52a active=0 (expect 0); settle=5s
+di_check,DI-WET,6-55,52b,high,true,active,1,digital.active,1,1,PASS,2026-10-21T17:35:04,cycle 55/100; USB Ch6 52b; board digital.52b active=1 (expect 1); settle=5s
+fault_trip_close,FAULT-TRIP,trip-1,event_created,event,1,event,354,b7,355,355,FAIL,2026-10-22T09:49:13,"expected +1 event(s), got max_id_delta=0 count_delta=0; cycle=1/2; FAULT-TRIP; 52B stays low; event_wait=20s; refresh_wait=20s; expect_delta=1; events 128->128; max_id 354->354"
+fault_trip_close,FAULT-CLOSE,close-1,event_created,event,1,event,354,b7,355,355,FAIL,2026-10-22T09:50:04,"expected +1 event(s), got max_id_delta=0 count_delta=0; cycle=1/2; FAULT-CLOSE; 52A stays low; event_wait=20s; refresh_wait=20s; expect_delta=1; events 128->128; max_id 354->354"
+di_check,DI-WET,1-1,trip,high,true,active,0,digital.active,1,1,FAIL,2026-10-22T09:50:34,"expected trip active=1, got 0; cycle 1/100; USB Ch1 trip; board digital.trip active=0 (expect 1); settle=5s"
+di_check,DI-WET,1-1,trip,low,false,active,0,digital.active,0,0,PASS,2026-10-22T09:50:39,cycle 1/100; USB Ch1 trip; board digital.trip active=0 (expect 0); settle=5s
+di_check,DI-WET,2-1,backtrip,high,true,active,0,digital.active,1,1,FAIL,2026-10-22T09:50:44,"expected backtrip active=1, got 0; cycle 1/100; USB Ch2 backtrip; board digital.backtrip active=0 (expect 1); settle=5s"
+fault_trip_close,FAULT-TRIP,trip-1,trip_total,counter,1,count,159,b7,160,160,FAIL,2026-10-22T10:00:21,"expected 160, got 159; cycle=1/2; FAULT-TRIP; 52B stays low; counter_wait=20s; before_trip=159 before_close=173 after_trip=159 after_close=173 after_backup=17"
+fault_trip_close,FAULT-CLOSE,close-1,close_total,counter,1,count,173,b7,174,174,FAIL,2026-10-22T10:00:42,"expected 174, got 173; cycle=1/2; FAULT-CLOSE; 52A stays low; counter_wait=20s; before_trip=159 before_close=173 after_trip=160 after_close=173 after_backup=17"
+fault_trip_close,FAULT-TRIP,trip-2,trip_total,counter,1,count,160,b7,161,161,FAIL,2026-10-22T10:01:04,"expected 161, got 160; cycle=2/2; FAULT-TRIP; 52B stays low; counter_wait=20s; before_trip=160 before_close=173 after_trip=160 after_close=174 after_backup=17"
+fault_trip_close,FAULT-TRIP,trip-1,trip_total,counter,1,count,161,b7,162,162,FAIL,2026-10-22T10:03:49,"expected 162, got 161; cycle=1/2; FAULT-TRIP; 52B stays low; counter_wait=30s; before_trip=161 before_close=174 after_trip=161 after_close=174 after_backup=17"
+fault_trip_close,FAULT-TRIP,trip-1,trip_total,counter,1,count,163,b7,163,163,PASS,2026-10-22T10:05:33,cycle=1/2; FAULT-TRIP; 52B stays low; counter_wait=40s; before_trip=162 before_close=174 after_trip=163 after_close=174 after_backup=17
+fault_trip_close,FAULT-CLOSE,close-1,close_total,counter,1,count,175,b7,175,175,PASS,2026-10-22T10:06:15,cycle=1/2; FAULT-CLOSE; 52A stays low; counter_wait=40s; before_trip=163 before_close=174 after_trip=163 after_close=175 after_backup=17
+fault_trip_close,FAULT-TRIP,trip-2,trip_total,counter,1,count,164,b7,164,164,PASS,2026-10-22T10:06:56,cycle=2/2; FAULT-TRIP; 52B stays low; counter_wait=40s; before_trip=163 before_close=175 after_trip=164 after_close=175 after_backup=17
+fault_trip_close,FAULT-CLOSE,close-2,close_total,counter,1,count,176,b7,176,176,PASS,2026-10-22T10:07:38,cycle=2/2; FAULT-CLOSE; 52A stays low; counter_wait=40s; before_trip=164 before_close=175 after_trip=164 after_close=176 after_backup=17

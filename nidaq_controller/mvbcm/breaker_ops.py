@@ -441,6 +441,7 @@ def _score_event_row(
     before: dict[str, Any] | None,
     after: dict[str, Any] | None,
     expect_delta: int = 1,
+    wait_s: float | None = None,
 ) -> dict:
     """PASS if max_id or count advances by exactly ``expect_delta``.
 
@@ -453,6 +454,7 @@ def _score_event_row(
     before_id = None if before is None else int(before["max_id"])
     after_id = None if after is None else int(after["max_id"])
     delta = max(1, int(expect_delta))
+    wait = EVENT_REFRESH_WAIT_S if wait_s is None else float(wait_s)
     id_ok = (
         before_id is not None
         and after_id is not None
@@ -469,7 +471,7 @@ def _score_event_row(
         (before_count + delta) if before_count is not None else None
     )
     note = (
-        f"{cycle_tag}; refresh_wait={EVENT_REFRESH_WAIT_S:.0f}s; "
+        f"{cycle_tag}; refresh_wait={wait:.0f}s; "
         f"expect_delta={delta}; "
         f"events {before_count}->{after_count}; max_id {before_id}->{after_id}"
     )
