@@ -125,11 +125,42 @@ def build_iph_fault_wave() -> np.ndarray:
     amplitude[pre_n:pre_n + fault_n + 1] = peak_90
     amplitude[pre_n + fault_n + 1:] = 0.0
     wave = amplitude * sine
-    if abs(float(wave[pre_n])) > 1e-6 or float(wave[pre_n + 1]) <= 0.0:
-        raise RuntimeError("30% to 90% join is not a clean zero crossing")
+    _require_clean_join(wave, pre_n, fault_n, peak_30, peak_90)
+    return wave
+
+
+def _require_clean_join(
+    wave: np.ndarray,
+    pre_n: int,
+    fault_n: int,
+    peak_30: float,
+    peak_90: float,
+) -> None:
+    """Reject a buffer that steps, sits at zero, or carries a DC offset."""
+    if abs(float(wave[pre_n])) > 1e-6:
+        raise RuntimeError("fault does not start on a zero crossing")
+    if float(wave[pre_n - 1]) >= 0.0:
+        raise RuntimeError("pre-fault sine does not approach the crossing from below")
+    rise_end = pre_n + max(2, fault_n // 4)
+    rise = wave[pre_n + 1:rise_end]
+    if rise.size == 0 or float(rise[0]) <= 0.0 or np.any(np.abs(rise) < 1e-4):
+        raise RuntimeError("30% to 90% transition holds at zero")
     if abs(float(np.mean(wave[:pre_n]))) > 1e-3:
         raise RuntimeError("pre-fault sine has a DC offset")
-    return wave
+    fault = wave[pre_n:pre_n + fault_n + 1]
+    if abs(float(np.max(fault)) - peak_90) > 1e-4:
+        raise RuntimeError("fault quarter-cycle does not reach the 90% peak")
+    if np.any(wave[pre_n + fault_n + 1:] != 0.0):
+        raise RuntimeError("hold after the fault is not zero")
+    max_step = peak_90 * 2.0 * math.pi * FREQUENCY_HZ / SAMPLE_RATE * 1.05
+    steps = np.abs(np.diff(wave[:pre_n + fault_n + 1]))
+    if float(np.max(steps)) > max_step:
+        raise RuntimeError("iph buffer has a step between samples")
+    expected_prev = peak_30 * math.sin(
+        2.0 * math.pi * FREQUENCY_HZ * (pre_n - 1) / SAMPLE_RATE
+    )
+    if abs(float(wave[pre_n - 1]) - expected_prev) > 1e-6:
+        raise RuntimeError("sample before the fault is not the 30% sine")
 
 
 class _FiniteIph:
