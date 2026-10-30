@@ -38,7 +38,7 @@ DI_CHECK_LINES: tuple[dict[str, Any], ...] = (
         "coil_key": "backup_trip_coil",
         "signal": "backtrip",
         "board_id": 2,
-        "aliases": ("backtrip", "backuptrip", "backup"),
+        "aliases": ("backtrip", "backuptrip", "backup", "backup_trip"),
     },
     {
         "usb_ch": 3,
