@@ -1113,7 +1113,7 @@ def api_mvbcm_run():
                 from nidaq_controller.mvbcm.sheet import load_steps
                 from nidaq_controller.mvbcm.channel_map import enabled_groups
                 from nidaq_controller.mvbcm.breaker_ops import (
-                    COUNTER_SETTLE_S,
+                    EVENT_SETTLE_S,
                     MvbcmStopped,
                     default_trip_channels,
                     device_name_from_channels,
@@ -1295,14 +1295,14 @@ def api_mvbcm_run():
                         f"{trip_mod.name} ({trip_close_cycles} cycle(s))"
                     )
                     add_log(
-                        f"MV BCM counter settle {COUNTER_SETTLE_S:.0f}s after trip/close"
+                        f"MV BCM event wait {EVENT_SETTLE_S:.0f}s after trip/close"
                     )
                     breaker_rows = run_trip_close_test(
                         board,
                         device=trip_mod.name,
                         module=trip_mod,
                         channels=channels,
-                        settle=COUNTER_SETTLE_S,
+                        settle=EVENT_SETTLE_S,
                         timeout=5.0,
                         cycles=trip_close_cycles,
                         on_row=_on_row,
@@ -1507,10 +1507,14 @@ def api_di_trip_waveform():
             if error:
                 return jsonify({'error': error}), 400
             controller = get_dio_controller(di, mi, module)
-            payload = controller.apply_breaker_operation(channels, operation)
+            debounce = bool(data.get('debounce', False))
+            payload = controller.apply_breaker_operation(
+                channels, operation, debounce=debounce,
+            )
             used = payload.get('channels_used') or {}
+            debounce_note = " with 1 ms debounce ×2" if debounce else ""
             add_log(
-                f"{operation.upper()} APPLIED on outputs: "
+                f"{operation.upper()} APPLIED{debounce_note} on outputs: "
                 + ", ".join(f"{key}={line}" for key, line in used.items())
             )
             payload['applied'] = True
@@ -1606,8 +1610,21 @@ def api_operation_loop_start():
         interval_s = float((data or {}).get('interval_s', OPERATION_INTERVAL_S))
         if interval_s < 0:
             return jsonify({'error': 'interval_s must be >= 0'}), 400
-        status = controller.start_operation_loop(channels, interval_s=interval_s)
-        add_log(f"Trip/close loop started, {interval_s:.0f}s apart")
+        debounce_trip = bool((data or {}).get('debounce_trip', False))
+        debounce_close = bool((data or {}).get('debounce_close', False))
+        status = controller.start_operation_loop(
+            channels,
+            interval_s=interval_s,
+            debounce_trip=debounce_trip,
+            debounce_close=debounce_close,
+        )
+        extra = []
+        if debounce_trip:
+            extra.append('debounce trip')
+        if debounce_close:
+            extra.append('debounce close')
+        extra_s = f" ({', '.join(extra)})" if extra else ""
+        add_log(f"Trip/close loop started, {interval_s:.0f}s apart{extra_s}")
         return jsonify(status)
     except (ValueError, RuntimeError) as e:
         add_log(f"Trip/close loop failed: {e}", 'ERROR')

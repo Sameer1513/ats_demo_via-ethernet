@@ -954,7 +954,9 @@ class DigitalIOController:
 
     def start_operation_loop(self,
                               channels: Dict[str, str],
-                              interval_s: float = 30.0) -> Dict[str, Any]:
+                              interval_s: float = 30.0,
+                              debounce_trip: bool = False,
+                              debounce_close: bool = False) -> Dict[str, Any]:
         """
         Alternate trip and close captures. After each record, wait
         interval_s before arming the other operation.
@@ -982,7 +984,10 @@ class DigitalIOController:
             }
         thread = threading.Thread(
             target=self._operation_loop_main,
-            args=(dict(channels), float(interval_s), stop),
+            args=(
+                dict(channels), float(interval_s), stop,
+                bool(debounce_trip), bool(debounce_close),
+            ),
             name=f"op-loop-{self.device_name}",
             daemon=True,
         )
@@ -1021,23 +1026,32 @@ class DigitalIOController:
 
     def apply_breaker_operation(self,
                                  channels: Dict[str, str],
-                                 operation: str) -> Dict[str, Any]:
+                                 operation: str,
+                                 debounce: bool = False) -> Dict[str, Any]:
         """Drive one trip or close on the four output lines. Not a plot-only preview."""
         if self._op_loop_thread and self._op_loop_thread.is_alive():
             raise RuntimeError("Stop the loop before applying a single trip or close")
         if not self._waveform_lock.acquire(blocking=False):
             raise RuntimeError("Trip/close already running")
         try:
-            return self.play_breaker_operation(channels, operation, threading.Event())
+            return self.play_breaker_operation(
+                channels, operation, threading.Event(), debounce=debounce,
+            )
         finally:
             self._waveform_lock.release()
 
     def play_breaker_operation(self,
                                 channels: Dict[str, str],
                                 operation: str,
-                                stop: threading.Event) -> Dict[str, Any]:
+                                stop: threading.Event,
+                                *,
+                                debounce: bool = False) -> Dict[str, Any]:
         """
         Drive the wet DO lines through one trip or close.
+
+        If ``debounce``, after the 200 ms settle pulse the coil(s) 1 ms
+        high/low twice (trip + backup together; close coil only), then the
+        10 ms pulse. 52A/52B are not touched during the bounces.
 
         Trip: 52A starts high, trip coil pulses 10 ms, 52A drops with that
         falling edge, 52B rises 100 ms later, close coil stays low.
@@ -1045,6 +1059,8 @@ class DigitalIOController:
         Close is the mirror. Raises if a line will not write.
         """
         from constants import (
+            COIL_DEBOUNCE_PULSES,
+            COIL_DEBOUNCE_S,
             TRIP_OPENING_TRAVEL_S,
             TRIP_POST_TRIGGER_S,
             TRIP_PRE_TRIGGER_S,
@@ -1075,7 +1091,9 @@ class DigitalIOController:
         fall = CHANNEL_KEYS[int(op["fall_index"])]
         rise = CHANNEL_KEYS[int(op["rise_index"])]
         levels = {key: False for key in active_keys}
-        levels[fall] = True
+        coil_keys = [pulse]
+        if operation == "trip" and has_backup:
+            coil_keys.append(backup_key)
 
         def _fail_msg(channel: str) -> str:
             detail = (self.task_manager.get_last_error() or "").strip()
@@ -1107,13 +1125,22 @@ class DigitalIOController:
                 raise OperationStopped()
 
         # Initial contacts only (includes close low once — not again mid-pulse).
+        levels[fall] = True
         apply()
         hold(TRIP_PRE_TRIGGER_S)
+        if debounce:
+            for _ in range(COIL_DEBOUNCE_PULSES):
+                for key in coil_keys:
+                    levels[key] = True
+                apply(coil_keys)
+                hold(COIL_DEBOUNCE_S)
+                for key in coil_keys:
+                    levels[key] = False
+                apply(coil_keys)
+                hold(COIL_DEBOUNCE_S)
         levels[pulse] = True
-        coil_keys = [pulse]
         if operation == "trip" and has_backup:
             levels[backup_key] = True
-            coil_keys.append(backup_key)
         # Pulse rise: coils only — do not touch close on the same port.
         apply(coil_keys)
         hold(TRIP_PULSE_S)
@@ -1139,6 +1166,7 @@ class DigitalIOController:
             ]
         record["mode"] = "driven"
         record["channels_used"] = resolved
+        record["debounce"] = bool(debounce)
         return record
 
     def _match_do_channel(self, raw: Optional[str], normalize) -> str:
@@ -1157,7 +1185,9 @@ class DigitalIOController:
     def _operation_loop_main(self,
                               channels: Dict[str, str],
                               interval_s: float,
-                              stop: threading.Event) -> None:
+                              stop: threading.Event,
+                              debounce_trip: bool = False,
+                              debounce_close: bool = False) -> None:
         cycle = 0
         try:
             from daq_io.di_waveform import (
@@ -1173,7 +1203,9 @@ class DigitalIOController:
                 )
                 try:
                     if drive:
-                        record = self.play_breaker_operation(channels, "trip", stop)
+                        record = self.play_breaker_operation(
+                            channels, "trip", stop, debounce=debounce_trip,
+                        )
                     else:
                         self._release_di_task()
                         record = acquire_trip_waveform(channels, stop_event=stop)
@@ -1191,7 +1223,9 @@ class DigitalIOController:
                 )
                 try:
                     if drive:
-                        record = self.play_breaker_operation(channels, "close", stop)
+                        record = self.play_breaker_operation(
+                            channels, "close", stop, debounce=debounce_close,
+                        )
                     else:
                         self._release_di_task()
                         record = acquire_close_waveform(channels, stop_event=stop)

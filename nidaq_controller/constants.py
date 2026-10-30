@@ -49,6 +49,10 @@ DEFAULT_MONITOR_INTERVAL_MS = 100.0
 # opening_travel later, close coil stays low, then post-trigger.
 TRIP_PRE_TRIGGER_S = 0.200
 TRIP_PULSE_S = 0.010
+# Optional coil debounce after 200 ms settle, immediately before the 10 ms pulse.
+COIL_DEBOUNCE_MS = 1.0
+COIL_DEBOUNCE_S = COIL_DEBOUNCE_MS / 1000.0
+COIL_DEBOUNCE_PULSES = 2
 TRIP_OPENING_TRAVEL_S = 0.100
 TRIP_POST_TRIGGER_S = 0.300
 TRIP_OPERATION_MAX_S = 3.0

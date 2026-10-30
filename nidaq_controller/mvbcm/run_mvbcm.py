@@ -470,9 +470,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"group trip_close kind=breaker counter check "
                 f"cycles={args.trip_close_cycles} device={trip_device or 'auto'}"
             )
-            from nidaq_controller.mvbcm.breaker_ops import COUNTER_SETTLE_S
-            breaker_settle = max(float(args.settle), COUNTER_SETTLE_S)
-            print(f"breaker counter settle={breaker_settle:.0f}s after trip/close")
+            from nidaq_controller.mvbcm.breaker_ops import EVENT_SETTLE_S
+            breaker_settle = max(float(args.settle), EVENT_SETTLE_S)
+            print(f"breaker event wait={breaker_settle:.0f}s after trip/close")
             breaker_rows = run_trip_close_test(
                 args.board,
                 device=trip_device,

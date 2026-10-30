@@ -847,10 +847,22 @@
                 <div class="trip-wave-meta" id="${op}_meta_${di}_${mi}"></div>
                 <div class="trip-wave-plot" id="${op}_plot_${di}_${mi}"></div>`;
             const savedLoopS = localStorage.getItem('op_loop_interval_s') || '30';
+            const debounceTripChecked = localStorage.getItem('op_debounce_trip') === '1' ? 'checked' : '';
+            const debounceCloseChecked = localStorage.getItem('op_debounce_close') === '1' ? 'checked' : '';
             return `
             <div class="trip-wave-panel" id="trip_panel_${di}_${mi}">
                 <div class="dio-module-toolbar">
                     <span style="color:#00d4ff;font-size:13px;">Trip / close · wet digital outputs</span>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="op_debounce_trip_${di}_${mi}" ${debounceTripChecked}
+                            onchange="onOpDebounceChange(${di},${mi})">
+                        Debounce trip
+                    </label>
+                    <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                        <input type="checkbox" id="op_debounce_close_${di}_${mi}" ${debounceCloseChecked}
+                            onchange="onOpDebounceChange(${di},${mi})">
+                        Debounce close
+                    </label>
                     <button class="btn-warning btn-sm" id="op_apply_trip_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'trip')">Apply trip</button>
                     <button class="btn-warning btn-sm" id="op_apply_close_${di}_${mi}" onclick="applyDiWaveform(${di},${mi},'close')">Apply close</button>
                     <label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
@@ -867,6 +879,7 @@
                     Trip: 10 ms trip + backup-trip pulse together, 52A falls with it, 52B rises 100 ms later, close coil stays low.
                     Close: 10 ms close pulse, 52B falls with it, 52A rises 100 ms later, trip/backup coils stay low.
                     Apply trip writes the lines once. Apply close writes the close pattern once.
+                    Debounce trip/close: after 200 ms settle, 1 ms high/low twice on the coil(s), then the 10 ms pulse.
                     Start loop repeats trip, gap, close, gap (gap is configurable). The status line says APPLIED only after the writes succeed.
                     Ports must be Output in NI MAX.
                 </p>
@@ -979,9 +992,14 @@
         async function applyDiWaveform(di, mi, operation) {
             const status = document.getElementById(`op_loop_status_${di}_${mi}`);
             const label = operation === 'close' ? 'Close' : 'Trip';
+            const debounce = !!document.getElementById(`op_debounce_${operation}_${di}_${mi}`)?.checked;
             const buttons = ['trip', 'close'].map(op => document.getElementById(`op_apply_${op}_${di}_${mi}`));
             buttons.forEach(btn => { if (btn) btn.disabled = true; });
-            if (status) status.textContent = `${label}: writing the four output lines…`;
+            if (status) {
+                status.textContent = debounce
+                    ? `${label}: 1 ms debounce ×2, then writing the output lines…`
+                    : `${label}: writing the four output lines…`;
+            }
             try {
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), 15000);
@@ -993,6 +1011,7 @@
                         body: JSON.stringify({
                             mode: 'apply',
                             operation,
+                            debounce,
                             device_idx: di,
                             module_idx: mi,
                             channels: readTripChannels(di, mi),
@@ -1023,7 +1042,9 @@
                     const tail = String(line).split('/').slice(-2).join('/');
                     return `${key}=${tail}`;
                 }).join(', ');
-                const msg = `${label} APPLIED. Outputs written: ${lines}`;
+                const msg = result.debounce
+                    ? `${label} APPLIED with 1 ms debounce ×2. Outputs written: ${lines}`
+                    : `${label} APPLIED. Outputs written: ${lines}`;
                 if (status) status.textContent = msg;
                 showToast(msg);
             } finally {
@@ -1114,6 +1135,13 @@
             if (start) start.textContent = `Start loop · ${intervalS} s`;
         }
 
+        function onOpDebounceChange(di, mi) {
+            const trip = !!document.getElementById(`op_debounce_trip_${di}_${mi}`)?.checked;
+            const close = !!document.getElementById(`op_debounce_close_${di}_${mi}`)?.checked;
+            localStorage.setItem('op_debounce_trip', trip ? '1' : '0');
+            localStorage.setItem('op_debounce_close', close ? '1' : '0');
+        }
+
         async function startOperationLoop(di, mi) {
             const intervalS = readOpLoopIntervalS(di, mi);
             if (intervalS == null) {
@@ -1123,11 +1151,15 @@
             localStorage.setItem('op_loop_interval_s', String(intervalS));
             const status = document.getElementById(`op_loop_status_${di}_${mi}`);
             if (status) status.textContent = `Starting loop (${intervalS} s gap)…`;
+            const debounceTrip = !!document.getElementById(`op_debounce_trip_${di}_${mi}`)?.checked;
+            const debounceClose = !!document.getElementById(`op_debounce_close_${di}_${mi}`)?.checked;
             const result = await apiCall('/api/di/operation-loop/start', 'POST', {
                 device_idx: di,
                 module_idx: mi,
                 channels: readTripChannels(di, mi),
                 interval_s: intervalS,
+                debounce_trip: debounceTrip,
+                debounce_close: debounceClose,
             });
             if (!result) return;
             applyLoopStatus(di, mi, result);
