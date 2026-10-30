@@ -1728,6 +1728,7 @@
                     <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
                     <button class="btn-warning btn-sm" id="mvbcm_faultcur_${di}_${mi}" onclick="runMvbcmEvent(${di},${mi},'fault-current','Fault current')">Fault current</button>
                     <button class="btn-warning btn-sm" id="mvbcm_closeev_${di}_${mi}" onclick="runMvbcmEvent(${di},${mi},'close-event','Close event')">Close event</button>
+                    <button class="btn-warning btn-sm" id="mvbcm_emc_${di}_${mi}" onclick="runMvbcmEvent(${di},${mi},'emc','EMC')">EMC</button>
                     <button class="btn-danger btn-sm" id="mvbcm_stop_${di}_${mi}" onclick="stopMvbcm(${di},${mi})" disabled>Stop</button>
                 </div>
                 <div class="dio-module-toolbar" id="mvbcm_hrow_${di}_${mi}">
@@ -2029,11 +2030,13 @@
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
             const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
             const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
+            const emcBtn = document.getElementById(`mvbcm_emc_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (!statusEl) return false;
             if (runBtn) runBtn.disabled = !!data.running;
             if (faultBtn) faultBtn.disabled = !!data.running;
             if (closeBtn) closeBtn.disabled = !!data.running;
+            if (emcBtn) emcBtn.disabled = !!data.running;
             if (stopBtn) stopBtn.disabled = !data.running;
             const stopped = !!(data.stopped || (data.error || '').toLowerCase().includes('stopped'));
             const tail = data.error ? ` — ${data.error}` : '';
@@ -2198,6 +2201,7 @@
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
             const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
             const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
+            const emcBtn = document.getElementById(`mvbcm_emc_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) {
                 statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, ct, tripClose, tripCloseCycles, diCheck, diTimes, faultCheck, faultCycles, hnList)})`;
@@ -2205,6 +2209,7 @@
             if (runBtn) runBtn.disabled = true;
             if (faultBtn) faultBtn.disabled = true;
             if (closeBtn) closeBtn.disabled = true;
+            if (emcBtn) emcBtn.disabled = true;
             if (stopBtn) stopBtn.disabled = false;
             const started = await apiCall('/api/mvbcm/run', 'POST', {
                 device_idx: di,
@@ -2226,6 +2231,7 @@
                 if (runBtn) runBtn.disabled = false;
                 if (faultBtn) faultBtn.disabled = false;
                 if (closeBtn) closeBtn.disabled = false;
+                if (emcBtn) emcBtn.disabled = false;
                 if (stopBtn) stopBtn.disabled = true;
                 return;
             }
@@ -2246,11 +2252,13 @@
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
             const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
             const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
+            const emcBtn = document.getElementById(`mvbcm_emc_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) statusEl.textContent = `Starting ${label}…`;
             if (runBtn) runBtn.disabled = true;
             if (faultBtn) faultBtn.disabled = true;
             if (closeBtn) closeBtn.disabled = true;
+            if (emcBtn) emcBtn.disabled = true;
             if (stopBtn) stopBtn.disabled = false;
             const started = await apiCall(`/api/mvbcm/${path}`, 'POST', {
                 device_idx: di,
@@ -2262,6 +2270,7 @@
                 if (runBtn) runBtn.disabled = false;
                 if (faultBtn) faultBtn.disabled = false;
                 if (closeBtn) closeBtn.disabled = false;
+                if (emcBtn) emcBtn.disabled = false;
                 if (stopBtn) stopBtn.disabled = true;
                 return;
             }

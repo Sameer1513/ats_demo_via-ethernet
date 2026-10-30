@@ -1402,6 +1402,8 @@ def _launch_mvbcm_event(di, mi, board, device_name, label, runner_name):
             from nidaq_controller.mvbcm.stimuli.voltage import find_9264
             if runner_name == 'close':
                 from nidaq_controller.mvbcm.close_event import run_close_event as run
+            elif runner_name == 'emc':
+                from nidaq_controller.mvbcm.emc import run_emc as run
             else:
                 from nidaq_controller.mvbcm.fault_current import run_fault_current as run
 
@@ -1547,6 +1549,29 @@ def api_mvbcm_close_event():
                 _mvbcm_state['done'] = True
                 _mvbcm_state['error'] = str(e)
         return _api_error('MV BCM close event', e, di=di, mi=mi)
+
+
+@app.route('/api/mvbcm/emc', methods=['POST'])
+def api_mvbcm_emc():
+    """API: EMC hold. RMS every 5 s, event and counters after each command."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        started, err = _begin_mvbcm_event(data)
+        if err:
+            return err
+        di, mi, board, device_name = started
+        _launch_mvbcm_event(di, mi, board, device_name, 'emc', 'emc')
+        return jsonify({'started': True, 'emc': True, 'board': board, 'device': device_name})
+    except Exception as e:
+        with _mvbcm_lock:
+            if _mvbcm_state['running'] and not _mvbcm_state['rows']:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                _mvbcm_state['error'] = str(e)
+        return _api_error('MV BCM emc', e, di=di, mi=mi)
 
 
 @app.route('/api/do/write', methods=['POST'])
