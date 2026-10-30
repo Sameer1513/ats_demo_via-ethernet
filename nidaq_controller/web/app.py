@@ -1381,6 +1381,174 @@ def api_mvbcm_run():
         return _api_error('MV BCM run', e, di=di, mi=mi)
 
 
+def _launch_mvbcm_event(di, mi, board, device_name, label, runner_name):
+    """Background runner for Fault current and Close event. Not the main Run path."""
+    def _should_stop() -> bool:
+        return _mvbcm_stop.is_set()
+
+    def _worker():
+        rows = []
+        stopped = False
+        try:
+            repo_root = Path(__file__).resolve().parents[2]
+            if str(repo_root) not in sys.path:
+                sys.path.append(str(repo_root))
+            from nidaq_controller.mvbcm.breaker_ops import (
+                MvbcmStopped,
+                default_trip_channels,
+                device_name_from_channels,
+            )
+            from nidaq_controller.mvbcm.run_mvbcm import DEFAULT_RESULTS, append_results
+            from nidaq_controller.mvbcm.stimuli.voltage import find_9264
+            if runner_name == 'close':
+                from nidaq_controller.mvbcm.close_event import run_close_event as run
+            else:
+                from nidaq_controller.mvbcm.fault_current import run_fault_current as run
+
+            _stop_module_ao(di, mi)
+            _stop_modules_by_product('9264')
+            voltage_device = find_9264()
+            channels = default_trip_channels()
+            prefer = device_name_from_channels(channels or {}) or "Dev9"
+            trip_di, trip_mi, trip_mod = _find_trip_dio_indices(prefer)
+            dio = get_dio_controller(trip_di, trip_mi, trip_mod)
+            add_log(f"MV BCM {label} on {device_name} -> {board}")
+
+            def _on_row(row):
+                with _mvbcm_lock:
+                    _mvbcm_state['rows'].append(row)
+
+            rows = run(
+                board,
+                voltage_device=voltage_device,
+                current_device=device_name,
+                channels=channels,
+                module=trip_mod,
+                controller_factory=lambda _m: dio,
+                timeout=5.0,
+                on_row=_on_row,
+                should_stop=_should_stop,
+            )
+            if _should_stop():
+                stopped = True
+                raise MvbcmStopped('stopped by user')
+            append_results(DEFAULT_RESULTS, rows)
+            passed, failed = _mvbcm_counts(rows)
+            add_log(f"MV BCM {label} finished: {passed} pass, {failed} fail")
+        except Exception as exc:
+            from nidaq_controller.mvbcm.breaker_ops import MvbcmStopped as _Stopped
+            stopped = isinstance(exc, _Stopped) or _should_stop()
+            if stopped:
+                try:
+                    _stop_module_ao(di, mi)
+                    _stop_modules_by_product('9264')
+                except Exception:
+                    pass
+                with _mvbcm_lock:
+                    kept = list(_mvbcm_state['rows'])
+                    _mvbcm_state['error'] = 'stopped by user'
+                    _mvbcm_state['stopped'] = True
+                add_log(f"MV BCM {label} stopped ({len(kept)} result(s) kept)")
+                if kept:
+                    try:
+                        from nidaq_controller.mvbcm.run_mvbcm import DEFAULT_RESULTS, append_results
+                        append_results(DEFAULT_RESULTS, kept)
+                    except Exception:
+                        pass
+            else:
+                add_log(f"MV BCM {label} failed: {exc}", 'ERROR')
+                with _mvbcm_lock:
+                    _mvbcm_state['error'] = str(exc)
+        finally:
+            with _mvbcm_lock:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                if stopped:
+                    _mvbcm_state['stopped'] = True
+
+    threading.Thread(target=_worker, name=f'mvbcm-{label}', daemon=True).start()
+
+
+def _begin_mvbcm_event(data):
+    di = mi = None
+    di, mi, err = _require_indices(data)
+    if err:
+        return None, err
+    try:
+        board = _board_url(data.get('board', ''))
+    except ValueError as exc:
+        return None, (jsonify({'error': str(exc)}), 400)
+    _device, module, error = get_controller(di, mi)
+    if error:
+        return None, (jsonify({'error': error}), 400)
+    if '9266' not in (module.product_type or '').upper():
+        return None, (jsonify({'error': 'This test runs on an NI-9266'}), 400)
+    with _mvbcm_lock:
+        if _mvbcm_state['running']:
+            return None, (jsonify({'error': 'A test is already running'}), 409)
+        _mvbcm_stop.clear()
+        _mvbcm_state.update({
+            'running': True,
+            'done': False,
+            'stopped': False,
+            'error': '',
+            'rows': [],
+            'passed': 0,
+            'failed': 0,
+            'device_idx': di,
+            'module_idx': mi,
+            'board': board,
+            'device': module.name,
+        })
+    return (di, mi, board, module.name), None
+
+
+@app.route('/api/mvbcm/fault-current', methods=['POST'])
+def api_mvbcm_fault_current():
+    """API: Fault-current trip. Scores the stored event, not the main Run path."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        started, err = _begin_mvbcm_event(data)
+        if err:
+            return err
+        di, mi, board, device_name = started
+        _launch_mvbcm_event(di, mi, board, device_name, 'fault current', 'fault')
+        return jsonify({'started': True, 'fault_current': True, 'board': board, 'device': device_name})
+    except Exception as e:
+        with _mvbcm_lock:
+            if _mvbcm_state['running'] and not _mvbcm_state['rows']:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                _mvbcm_state['error'] = str(e)
+        return _api_error('MV BCM fault current', e, di=di, mi=mi)
+
+
+@app.route('/api/mvbcm/close-event', methods=['POST'])
+def api_mvbcm_close_event():
+    """API: Close event. Scores rms_eng and the close event row."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        started, err = _begin_mvbcm_event(data)
+        if err:
+            return err
+        di, mi, board, device_name = started
+        _launch_mvbcm_event(di, mi, board, device_name, 'close event', 'close')
+        return jsonify({'started': True, 'close_event': True, 'board': board, 'device': device_name})
+    except Exception as e:
+        with _mvbcm_lock:
+            if _mvbcm_state['running'] and not _mvbcm_state['rows']:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                _mvbcm_state['error'] = str(e)
+        return _api_error('MV BCM close event', e, di=di, mi=mi)
+
+
 @app.route('/api/do/write', methods=['POST'])
 def api_do_write():
     """API: Set digital output to true or false."""

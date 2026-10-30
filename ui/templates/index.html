@@ -1726,6 +1726,8 @@
                         <input type="number" id="mvbcm_fault_cycles_${di}_${mi}" value="${escAttr(savedFaultCycles)}" min="1" step="1" style="width:64px;margin-left:6px;">
                     </label>
                     <button class="btn-warning btn-sm" id="mvbcm_run_${di}_${mi}" onclick="runMvbcm(${di},${mi})">Run</button>
+                    <button class="btn-warning btn-sm" id="mvbcm_faultcur_${di}_${mi}" onclick="runMvbcmEvent(${di},${mi},'fault-current','Fault current')">Fault current</button>
+                    <button class="btn-warning btn-sm" id="mvbcm_closeev_${di}_${mi}" onclick="runMvbcmEvent(${di},${mi},'close-event','Close event')">Close event</button>
                     <button class="btn-danger btn-sm" id="mvbcm_stop_${di}_${mi}" onclick="stopMvbcm(${di},${mi})" disabled>Stop</button>
                 </div>
                 <div class="dio-module-toolbar" id="mvbcm_hrow_${di}_${mi}">
@@ -2025,9 +2027,13 @@
             const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
             const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
+            const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (!statusEl) return false;
             if (runBtn) runBtn.disabled = !!data.running;
+            if (faultBtn) faultBtn.disabled = !!data.running;
+            if (closeBtn) closeBtn.disabled = !!data.running;
             if (stopBtn) stopBtn.disabled = !data.running;
             const stopped = !!(data.stopped || (data.error || '').toLowerCase().includes('stopped'));
             const tail = data.error ? ` — ${data.error}` : '';
@@ -2190,11 +2196,15 @@
             if (logEl) logEl.innerHTML = '';
             const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
             const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
+            const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) {
                 statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, ct, tripClose, tripCloseCycles, diCheck, diTimes, faultCheck, faultCycles, hnList)})`;
             }
             if (runBtn) runBtn.disabled = true;
+            if (faultBtn) faultBtn.disabled = true;
+            if (closeBtn) closeBtn.disabled = true;
             if (stopBtn) stopBtn.disabled = false;
             const started = await apiCall('/api/mvbcm/run', 'POST', {
                 device_idx: di,
@@ -2214,6 +2224,44 @@
             if (!started) {
                 if (statusEl) statusEl.textContent = 'Idle';
                 if (runBtn) runBtn.disabled = false;
+                if (faultBtn) faultBtn.disabled = false;
+                if (closeBtn) closeBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = true;
+                return;
+            }
+            pollMvbcm(di, mi);
+        }
+
+        async function runMvbcmEvent(di, mi, path, label) {
+            const input = document.getElementById(`mvbcm_ip_${di}_${mi}`);
+            const board = (input?.value || '').trim();
+            if (!board) {
+                showToast('Enter the board IP', 'error');
+                return;
+            }
+            localStorage.setItem('mvbcm_board_ip', board);
+            const logEl = document.getElementById(`mvbcm_log_${di}_${mi}`);
+            if (logEl) logEl.innerHTML = '';
+            const statusEl = document.getElementById(`mvbcm_status_${di}_${mi}`);
+            const runBtn = document.getElementById(`mvbcm_run_${di}_${mi}`);
+            const faultBtn = document.getElementById(`mvbcm_faultcur_${di}_${mi}`);
+            const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
+            const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
+            if (statusEl) statusEl.textContent = `Starting ${label}…`;
+            if (runBtn) runBtn.disabled = true;
+            if (faultBtn) faultBtn.disabled = true;
+            if (closeBtn) closeBtn.disabled = true;
+            if (stopBtn) stopBtn.disabled = false;
+            const started = await apiCall(`/api/mvbcm/${path}`, 'POST', {
+                device_idx: di,
+                module_idx: mi,
+                board,
+            }, 15000);
+            if (!started) {
+                if (statusEl) statusEl.textContent = 'Idle';
+                if (runBtn) runBtn.disabled = false;
+                if (faultBtn) faultBtn.disabled = false;
+                if (closeBtn) closeBtn.disabled = false;
                 if (stopBtn) stopBtn.disabled = true;
                 return;
             }
