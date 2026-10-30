@@ -1610,6 +1610,9 @@
             </div>`;
         }
 
+        const MVBCM_ODD_H = [3, 5, 7, 9, 11, 13, 15, 17, 19, 21];
+        const MVBCM_H1_FS_PEAK_V = 0.333 * 11 * Math.SQRT2;
+
         function renderAoModuleToolbar(di, mi, mod) {
             const count = mod.ao_channels?.length || 0;
             if (!count) return '';
@@ -1630,8 +1633,27 @@
             const ctChecked = savedCt === '1' ? 'checked' : '';
             const diChecked = savedDi === '1' ? 'checked' : '';
             const faultChecked = savedFault === '1' ? 'checked' : '';
+            const hBoxes = MVBCM_ODD_H.map((n) => {
+                const onSaved = localStorage.getItem(`mvbcm_h${n}_on`);
+                const onChecked = n === 3
+                    ? (onSaved === null || onSaved === '1' ? 'checked' : '')
+                    : (onSaved === '1' ? 'checked' : '');
+                const pct = localStorage.getItem(`mvbcm_h${n}_pct`) || '10';
+                return `<label style="font-size:12px;color:#aaa;display:inline-flex;align-items:center;gap:4px;">
+                    <input type="checkbox" id="mvbcm_h${n}_on_${di}_${mi}" ${onChecked}
+                        onchange="onMvbcmModeChange(${di},${mi})">
+                    H${n}
+                    <input type="number" id="mvbcm_h${n}_${di}_${mi}" value="${escAttr(pct)}" min="0" max="100" step="1" style="width:52px;">
+                    %
+                </label>`;
+            }).join('');
+            const aoView = localStorage.getItem(`ao_view_${di}_${mi}`) || 'direct';
+            const testView = aoView === 'test';
+            const viewToggle = unit === 'mA' ? `
+                    <button type="button" class="tab-btn-module ${testView ? 'active' : ''}" id="ao_view_test_${di}_${mi}" onclick="setAoView(${di},${mi},'test')">Test</button>
+                    <button type="button" class="tab-btn-module ${testView ? '' : 'active'}" id="ao_view_direct_${di}_${mi}" onclick="setAoView(${di},${mi},'direct')">Direct</button>` : '';
             const mvbcm = unit === 'mA' ? `
-            <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}">
+            <div class="mvbcm-panel" id="mvbcm_panel_${di}_${mi}" style="display:${testView ? 'block' : 'none'};">
                 <div class="dio-module-toolbar">
                     <span style="color:#00d4ff;font-size:13px;">tc1 tc2 cc imtr 1 mA · iph 10%</span>
                     <label style="font-size:12px;color:#aaa;">Board IP
@@ -1676,15 +1698,23 @@
                     <button class="btn-warning btn-sm" id="mvbcm_closeev_${di}_${mi}" onclick="runCloseEvent(${di},${mi})">Close event</button>
                     <button class="btn-danger btn-sm" id="mvbcm_stop_${di}_${mi}" onclick="stopMvbcm(${di},${mi})" disabled>Stop</button>
                 </div>
+                <div class="dio-module-toolbar" id="mvbcm_hrow_${di}_${mi}">
+                    <span style="color:#00d4ff;font-size:12px;">Odd H % of live peak</span>
+                    ${hBoxes}
+                </div>
                 <div class="trip-wave-meta" id="mvbcm_status_${di}_${mi}">Idle</div>
                 <div class="mvbcm-log" id="mvbcm_log_${di}_${mi}"></div>
             </div>` : '';
             return `
             <div class="dio-module-toolbar" id="ao_toolbar_${di}_${mi}">
                 <span style="color:#00d4ff;font-size:13px;">Analog Output (${count} ch) · ${unit}</span>
+                ${viewToggle}
+                <span id="ao_direct_actions_${di}_${mi}" style="display:${unit === 'mA' && testView ? 'none' : 'inline-flex'};gap:8px;align-items:center;">
                 <button class="btn-warning btn-sm" onclick="writeAOModule(${di},${mi})">Write All</button>
                 <button class="btn-primary btn-sm" onclick="openAoConfigPanel(${di},${mi})">Write Config</button>
+                </span>
             </div>
+            <div id="ao_direct_cfg_${di}_${mi}" style="display:${unit === 'mA' && testView ? 'none' : 'block'};">
             <div class="ao-config-panel" id="ao_config_panel_${di}_${mi}" style="display:none;">
                 <div class="ao-config-header">
                     <span class="ao-config-title">You can configure and write to all channels at once</span>
@@ -1718,6 +1748,7 @@
                     <button class="btn-secondary btn-sm" onclick="selectAllAoChannels(${di},${mi},false)">Clear</button>
                     <button class="btn-warning" onclick="writeAOConfigModule(${di},${mi})">Apply Config to Selected</button>
                 </div>
+            </div>
             </div>
             ${mvbcm}`;
         }
@@ -1833,9 +1864,16 @@
                     <span class="channel-value" id="val_${id}">-- V</span>
                 </div>`;
             });
-            (mod.ao_channels || []).forEach((ch, ci) => {
-                html += renderAoChannelRow(di, mi, ci, ch, mod);
-            });
+            const aoList = mod.ao_channels || [];
+            if (aoList.length) {
+                const aoView = localStorage.getItem(`ao_view_${di}_${mi}`) || 'direct';
+                const hideAo = (mod.ao_output_unit === 'current') && aoView === 'test';
+                html += `<div id="ao_direct_ch_${di}_${mi}" style="display:${hideAo ? 'none' : 'block'};">`;
+                aoList.forEach((ch, ci) => {
+                    html += renderAoChannelRow(di, mi, ci, ch, mod);
+                });
+                html += `</div>`;
+            }
             (mod.di_channels || []).forEach((ch, ci) => {
                 html += renderDigitalInputRow(di, mi, ci, ch);
             });
@@ -1910,7 +1948,36 @@
                 `;
                 panelsContainer.appendChild(panel);
             });
+            applyAllAoViews();
             resumeMvbcmIfRunning();
+        }
+
+        function setAoView(di, mi, view) {
+            localStorage.setItem(`ao_view_${di}_${mi}`, view);
+            applyAoView(di, mi);
+        }
+
+        function applyAoView(di, mi) {
+            const test = localStorage.getItem(`ao_view_${di}_${mi}`) === 'test';
+            const setDisp = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = value;
+            };
+            setDisp(`mvbcm_panel_${di}_${mi}`, test ? 'block' : 'none');
+            setDisp(`ao_direct_actions_${di}_${mi}`, test ? 'none' : 'inline-flex');
+            setDisp(`ao_direct_cfg_${di}_${mi}`, test ? 'none' : 'block');
+            setDisp(`ao_direct_ch_${di}_${mi}`, test ? 'none' : 'block');
+            const testBtn = document.getElementById(`ao_view_test_${di}_${mi}`);
+            const dirBtn = document.getElementById(`ao_view_direct_${di}_${mi}`);
+            if (testBtn) testBtn.classList.toggle('active', test);
+            if (dirBtn) dirBtn.classList.toggle('active', !test);
+        }
+
+        function applyAllAoViews() {
+            document.querySelectorAll('[id^="ao_view_test_"]').forEach((btn) => {
+                const match = btn.id.match(/^ao_view_test_(\d+)_(\d+)$/);
+                if (match) applyAoView(Number(match[1]), Number(match[2]));
+            });
         }
 
         function escText(s) {
@@ -1983,6 +2050,24 @@
             else paintMvbcm(data.device_idx, data.module_idx, data);
         }
 
+        function readMvbcmHarmonics(di, mi) {
+            const selected = [];
+            for (const n of MVBCM_ODD_H) {
+                const on = !!document.getElementById(`mvbcm_h${n}_on_${di}_${mi}`)?.checked;
+                const pct = parseFloat(document.getElementById(`mvbcm_h${n}_${di}_${mi}`)?.value);
+                if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+                    localStorage.setItem(`mvbcm_h${n}_pct`, String(pct));
+                }
+                localStorage.setItem(`mvbcm_h${n}_on`, on ? '1' : '0');
+                if (!on) continue;
+                if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+                    return { error: `H${n} % must be 0–100` };
+                }
+                if (pct > 0) selected.push({ order: n, pct });
+            }
+            return { selected };
+        }
+
         function onMvbcmModeChange(di, mi) {
             const analogEl = document.getElementById(`mvbcm_analog_${di}_${mi}`);
             const ctEl = document.getElementById(`mvbcm_ct_${di}_${mi}`);
@@ -1995,12 +2080,14 @@
             localStorage.setItem('mvbcm_trip_close', tripEl.checked ? '1' : '0');
             localStorage.setItem('mvbcm_di_check', diEl?.checked ? '1' : '0');
             localStorage.setItem('mvbcm_fault_trip_close', faultEl?.checked ? '1' : '0');
+            readMvbcmHarmonics(di, mi);
         }
 
-        function mvbcmModeLabel(analog, ct, tripClose, cycles, diCheck, diTimes, faultCheck, faultCycles) {
+        function mvbcmModeLabel(analog, ct, tripClose, cycles, diCheck, diTimes, faultCheck, faultCycles, hnList) {
             const parts = [];
-            if (analog) parts.push('analog');
-            if (ct) parts.push('CT');
+            const hn = (hnList || []).map((h) => `H${h.order} ${h.pct}%`).join('+');
+            if (analog) parts.push(hn ? `analog + ${hn}` : 'analog');
+            if (ct) parts.push(hn ? `CT + ${hn}` : 'CT');
             if (diCheck) parts.push(`DI check ×${diTimes}`);
             if (faultCheck) parts.push(`fault trip/close ×${faultCycles}`);
             if (tripClose) parts.push(`trip/close ×${cycles}`);
@@ -2041,6 +2128,23 @@
                 showToast('Fault trip/close cycles must be >= 1', 'error');
                 return;
             }
+            const hnRead = readMvbcmHarmonics(di, mi);
+            if (hnRead.error) {
+                showToast(hnRead.error, 'error');
+                return;
+            }
+            const hnList = hnRead.selected || [];
+            if ((analog || ct) && hnList.length) {
+                const sumPct = hnList.reduce((acc, h) => acc + h.pct, 0);
+                const aoPeak = MVBCM_H1_FS_PEAK_V * (1 + sumPct / 100);
+                if (aoPeak > 10) {
+                    showToast(
+                        `H1+harmonics peak ${aoPeak.toFixed(2)} V > 10 V at 100% FS (Σ Hn% = ${sumPct})`,
+                        'error'
+                    );
+                    return;
+                }
+            }
             localStorage.setItem('mvbcm_board_ip', board);
             localStorage.setItem('mvbcm_analog', analog ? '1' : '0');
             localStorage.setItem('mvbcm_ct', ct ? '1' : '0');
@@ -2064,7 +2168,7 @@
             const closeBtn = document.getElementById(`mvbcm_closeev_${di}_${mi}`);
             const stopBtn = document.getElementById(`mvbcm_stop_${di}_${mi}`);
             if (statusEl) {
-                statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, ct, tripClose, tripCloseCycles, diCheck, diTimes, faultCheck, faultCycles)})`;
+                statusEl.textContent = `Starting… (${mvbcmModeLabel(analog, ct, tripClose, tripCloseCycles, diCheck, diTimes, faultCheck, faultCycles, hnList)})`;
             }
             if (runBtn) runBtn.disabled = true;
             if (faultBtn) faultBtn.disabled = true;
@@ -2076,6 +2180,8 @@
                 board,
                 analog,
                 ct,
+                harmonics: hnList,
+                harmonic_h3_pct: hnList.find((h) => h.order === 3)?.pct ?? 10,
                 di_check: diCheck,
                 di_cycles: diCheck ? diTimes : 1,
                 fault_trip_close: faultCheck,

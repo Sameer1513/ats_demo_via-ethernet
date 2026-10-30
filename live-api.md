@@ -117,8 +117,8 @@ Board cal (examples):
 | `breaker_state_db` | Last persisted breaker state (falls back to live if empty) |
 | `aux_input_failure` | `1` if both 52A and 52B active (aux fail) |
 | `aux_input_failure_since_ms` | When aux fail started (ms epoch) |
-| `last_confirmed_operation_ms` | Later of `counters.last_confirmed_operation_ms` and the newest trip / backup / close **event** row. An unconfirmed save does not increment the totals below, but it can move this timestamp |
-| `days_since_last_operation` | Fractional days since that timestamp (4 decimal places); **-1** if none, or if the timestamp is not in the past |
+| `last_confirmed_operation_ms` | `counters.last_confirmed_operation_ms`. A timed-out trip or close does not move it |
+| `days_since_last_operation` | Fractional days since that confirmed timestamp (4 decimal places); **-1** if none, or if the timestamp is not in the past |
 | `trip_total` | Confirmed main trips only. A timed-out trip is stored and not counted |
 | `backup_trip_total` | Confirmed backup trips only |
 | `close_total` | Confirmed closes only |
@@ -168,7 +168,7 @@ Per-event timing and RMS tables use **`operations`** (below). `last_event_*` fie
 |-------|---------|
 | `event_num` | COMTRADE index from `comtrade_base` (e.g. `event_00160` → **160**), not SQLite `id` |
 | `ts_ms` | Event timestamp (epoch ms) |
-| `rec_slot` | `trip` / `backup_trip` / `close` / … |
+| `rec_slot` | `fault` / `trip` / `backup_trip` / `close` / `motor_run` |
 | `trigger_reason` | Recorder trigger string |
 | `trip_time_ms` | Trip cmd → **52A↓** (trip/backup); `0` otherwise |
 | `trip_travel_ms` | **52A↓** → **52B↑** (trip/backup); `0` otherwise |
@@ -178,11 +178,16 @@ Per-event timing and RMS tables use **`operations`** (below). `last_event_*` fie
 | `close_travel_ms` | **52B↓** → **52A↑** on close; `0` otherwise |
 | `total_close_ms` | Close cmd → **52A↑** on close; `0` otherwise |
 | `travel_ms` | Total operation time snapshot at save (`total_trip1_ms`, `total_trip2_ms`, or `total_close_ms`); used for velocity |
-| `arcing_time_ms` | Arc duration when measured |
+| `arcing_time_ms` | Stored arc duration for this event (ms). Non-zero only when **52A falls** inside the capture. Fault, trip, and backup use the same rule |
+| `iph_peak` | Stored maximum \|Iph\| for this capture (`events.iph_peak`), primary amperes. On a fault this is the fault peak |
+| `iph_rms` | Stored Iph RMS over the same capture (`events.iph_rms`) |
+| `i2t_increment` | Stored I²t for this event (A²·s). Same 52A rule as `arcing_time_ms`: the integral is kept only when 52A falls inside the capture |
 | `stroke_length_m` | Stroke snapshot at save (v19+); else current config at export |
 | `est_velocity_m_s` | `stroke_length_m / (travel_ms / 1000)` when both &gt; 0; else `0` |
 
-**UI column rules (RMS recent table):** Trip/close **time** = `trip_time_ms` or `close_time_ms`; **Travel** = `trip_travel_ms` or `close_travel_ms`; **Total** = `total_trip1_ms` / `total_trip2_ms` / `total_close_ms`. Est. velocity uses `travel_ms` (total).
+**Fault peak, arc time, and I²t.** These three values are the numbers already stored when the event was saved. The live page does not calculate them again. `iph_peak` is the highest \|Iph\| in that capture. For a row with `rec_slot` `fault`, the RMS **Fault peak** column shows that value (4 significant digits) when it is greater than 0. Arc time and I²t are filled only when 52A falls while the capture is running, for a fault as well as for a trip or backup. If 52A never falls, both stored values are 0: the fault row still shows the peak, and the **Arc** and **I²t** columns stay blank. A trip or backup with 52A falling under little current can show a short arc time and an I²t near 0, because samples at or below the fault threshold are left out of the integral.
+
+**Other RMS columns:** Trip/close **time** = `trip_time_ms` or `close_time_ms`; **Travel** = `trip_travel_ms` or `close_travel_ms`; **Total** = `total_trip1_ms` / `total_trip2_ms` / `total_close_ms`. Est. velocity uses `travel_ms` (total).
 
 #### `operations.totals`
 
@@ -203,6 +208,7 @@ Per-event timing and RMS tables use **`operations`** (below). `last_event_*` fie
 | `storage_bytes_free` | Free bytes on `/mnt` |
 | `storage_bytes_total` | Total bytes on `/mnt` |
 | `storage_updated_ms` | When storage stats were refreshed |
+| `stored_event_count` | Events whose COMTRADE file is still on disk (`comtrade_files_deleted = 0`). Not the raw SQLite row count |
 
 ### `health`
 
@@ -252,9 +258,9 @@ Response:
 
 **503** `{"ok":false,"error":"no database"}` when httpd has no DB. **500** `db read failed` or `oom` if the query cannot be built.
 
-The feed is `diagnostic_log` only. Operation saves are inserted there too, including a timed-out trip/close/backup, with codes `event.trip`, `event.backup_trip`, `event.close`, `event.fault`, `event.motor_run`. The message says the event completed; it does not repeat `end_not_confirmed`.
+The feed is `diagnostic_log` only. Operation saves are inserted there too, including a timed-out trip/close/backup, with codes `event.trip`, `event.backup_trip`, `event.close`, `event.fault`, `event.motor_run`. The message says the event completed. A fault message includes the stored peak (`peak <iph_peak>`), then `arc <ms> ms` when arc time is greater than 0, then `I2t <value>` when that increment is greater than 0.
 
-Other codes: CBM `cbm.opening_time`, …; RMS `rms.<signal>.high` / `.low`; aux assert message is `52A/52B same state`; startup partial-COMTRADE removal is `comtrade_partial_discarded`.
+Other codes: CBM `cbm.opening_time`, …; RMS `rms.<signal>.high` / `.low`; aux assert message is `52A/52B same state`; startup partial-COMTRADE removal is `comtrade_partial_discarded`. Per-channel ADC saturation is `channel_saturated` (`<signal> saturated. Make sure the connection is proper.`, then `<signal> recovered from saturation`). Open, short, and reverse use this same warning.
 
 ---
 

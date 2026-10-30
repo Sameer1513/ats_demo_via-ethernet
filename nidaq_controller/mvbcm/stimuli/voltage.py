@@ -95,8 +95,102 @@ class VoltageStimulus:
             peaks.append(peak)
         self._write_peaks(peaks, frequency)
 
+    def write_harmonic_mv(
+        self,
+        millivolts_rms_by_signal: dict[str, float],
+        frequency: float = 50.0,
+        h3_pct: float = 10.0,
+    ) -> None:
+        """H1 = sheet mV RMS × scale; H3 = ``h3_pct`` of H1 peak. Missing = 0 V."""
+        if frequency <= 0:
+            raise ValueError(f"frequency must be positive, got {frequency}")
+        if h3_pct < 0:
+            raise ValueError(f"h3_pct must not be negative, got {h3_pct}")
+        peaks = []
+        for channel in self._channels:
+            millivolts = float(millivolts_rms_by_signal.get(channel.signal, 0.0))
+            rms_volts = (millivolts / 1000.0) * channel.scale
+            peak = rms_volts * math.sqrt(2.0)
+            if peak < 0 or peak * (1.0 + h3_pct / 100.0) > self._high:
+                raise ValueError(
+                    f"{channel.signal} {millivolts} mV RMS x {channel.scale:g} "
+                    f"+ H3 {h3_pct:g}% is outside [{self._low:g}, {self._high:g}] V"
+                )
+            peaks.append(peak)
+        wave = _sine_plus_h3(frequency, peaks, h3_pct)
+        wave = np.clip(wave, self._low, self._high)
+        self._write_wave(wave)
+
+    def write_harmonic_from_peaks(
+        self,
+        millivolts_rms_by_signal: dict[str, float],
+        h3_peak_volts_by_signal: dict[str, float],
+        frequency: float = 50.0,
+    ) -> None:
+        """H1 from sheet mV RMS × scale; H3 is card volts **peak** (from live peak_eng)."""
+        self.write_harmonics(
+            millivolts_rms_by_signal, {3: h3_peak_volts_by_signal}, frequency,
+        )
+
+    def write_harmonics(
+        self,
+        millivolts_rms_by_signal: dict[str, float],
+        overtones: dict[int, dict[str, float]],
+        frequency: float = 50.0,
+    ) -> None:
+        """H1 from sheet mV RMS × scale; each order is card volts **peak** per signal."""
+        h1_by_signal = {}
+        for channel in self._channels:
+            millivolts = float(millivolts_rms_by_signal.get(channel.signal, 0.0))
+            h1_by_signal[channel.signal] = (
+                (millivolts / 1000.0) * channel.scale * math.sqrt(2.0)
+            )
+        self.write_harmonics_card(h1_by_signal, overtones, frequency)
+
+    def write_harmonics_card(
+        self,
+        h1_peak_by_signal: dict[str, float],
+        overtones: dict[int, dict[str, float]],
+        frequency: float = 50.0,
+    ) -> None:
+        """H1 and overtones are card volts **peak** per signal."""
+        if frequency <= 0:
+            raise ValueError(f"frequency must be positive, got {frequency}")
+        h1_peaks = []
+        for channel in self._channels:
+            h1 = float(h1_peak_by_signal.get(channel.signal, 0.0))
+            if h1 < 0:
+                raise ValueError(f"{channel.signal} H1 peak V must not be negative")
+            h1_peaks.append(h1)
+        ordered: list[tuple[int, list[float]]] = []
+        for order in sorted(overtones):
+            n = int(order)
+            if n < 2:
+                raise ValueError(f"harmonic order must be >= 2, got {n}")
+            peaks_n = []
+            for channel in self._channels:
+                amp = float(overtones[order].get(channel.signal, 0.0))
+                if amp < 0:
+                    raise ValueError(f"{channel.signal} H{n} peak V must not be negative")
+                peaks_n.append(amp)
+            ordered.append((n, peaks_n))
+        for index, h1 in enumerate(h1_peaks):
+            extra = sum(peaks_n[index] for _n, peaks_n in ordered)
+            if h1 + extra > self._high:
+                raise ValueError(
+                    f"{self._channels[index].signal} H1 {h1:.3f} V + "
+                    f"harmonics {extra:.3f} V peak is outside "
+                    f"[{self._low:g}, {self._high:g}] V"
+                )
+        wave = _sine_harmonics(frequency, h1_peaks, ordered)
+        wave = np.clip(wave, self._low, self._high)
+        self._write_wave(wave)
+
     def _write_peaks(self, peaks: list[float], frequency: float) -> None:
         wave = _sine(frequency, peaks)
+        self._write_wave(wave)
+
+    def _write_wave(self, wave) -> None:
         self._arm_clock()
         if self._started:
             try:
@@ -146,6 +240,36 @@ class VoltageStimulus:
             nidaqmx.constants.RegenerationMode.ALLOW_REGENERATION
         )
         self._timed = True
+
+
+def _sine_plus_h3(frequency: float, peaks: list[float], h3_pct: float) -> np.ndarray:
+    """H1 sine plus integer H3 at ``h3_pct`` of H1 peak."""
+    h3_peaks = [peak * (h3_pct / 100.0) for peak in peaks]
+    return _sine_harmonics(frequency, peaks, [(3, h3_peaks)])
+
+
+def _sine_harmonics(
+    frequency: float,
+    h1_peaks: list[float],
+    overtones: list[tuple[int, list[float]]],
+) -> np.ndarray:
+    """H1 sine plus integer overtones with independent card peaks."""
+    sample_count = AC_WAVEFORM_SAMPLES
+    sample_rate = AC_SAMPLE_RATE
+    ticks = np.arange(sample_count) / sample_rate
+    rows = []
+    for index, h1 in enumerate(h1_peaks):
+        fund = h1 * np.sin(2.0 * math.pi * frequency * ticks)
+        for order, peaks_n in overtones:
+            amp = peaks_n[index] if index < len(peaks_n) else 0.0
+            if amp > 0:
+                fund = fund + amp * np.sin(
+                    2.0 * math.pi * float(order) * frequency * ticks
+                )
+        rows.append(fund)
+    if len(rows) == 1:
+        return rows[0]
+    return np.vstack(rows)
 
 
 def _sine(frequency: float, peaks: list[float]) -> np.ndarray:

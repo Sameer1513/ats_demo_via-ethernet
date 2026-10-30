@@ -1045,6 +1045,28 @@ def api_mvbcm_run():
             return jsonify({'error': 'fault_cycles must be an integer'}), 400
         if run_fault and fault_cycles < 1:
             return jsonify({'error': 'fault_cycles must be >= 1'}), 400
+        try:
+            harmonic_h3_pct = float(data.get('harmonic_h3_pct', 10.0))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'harmonic_h3_pct must be a number'}), 400
+        harmonic_map = {}
+        repo_root = Path(__file__).resolve().parents[2]
+        if str(repo_root) not in sys.path:
+            sys.path.append(str(repo_root))
+        try:
+            from nidaq_controller.mvbcm.harmonic_ops import normalize_harmonics
+        except ModuleNotFoundError:
+            from mvbcm.harmonic_ops import normalize_harmonics
+        try:
+            harmonic_map = normalize_harmonics(
+                data.get('harmonics'),
+                fallback_h3_pct=harmonic_h3_pct,
+                require=False,
+            )
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        run_iph_h = bool(run_analog and harmonic_map)
+        run_imtr_h = bool(run_ct and harmonic_map)
 
         _device, module, error = get_controller(di, mi)
         if error:
@@ -1103,6 +1125,7 @@ def api_mvbcm_run():
                     FAULT_EVENT_WAIT_S,
                     run_fault_trip_close_test,
                 )
+                from nidaq_controller.mvbcm.harmonic_ops import run_harmonic_test
 
                 _stop_module_ao(di, mi)
                 _stop_modules_by_product('9264')
@@ -1111,6 +1134,16 @@ def api_mvbcm_run():
                     parts.append('analog')
                 if run_ct:
                     parts.append('CT')
+                if run_iph_h or run_imtr_h:
+                    hn = '+'.join(
+                        f'H{n} {pct:g}%' for n, pct in harmonic_map.items()
+                    )
+                    who = []
+                    if run_iph_h:
+                        who.append('iph')
+                    if run_imtr_h:
+                        who.append('imtr')
+                    parts.append(f'harmonic {"+".join(who)} {hn}')
                 if run_di:
                     parts.append(f'DI check×{di_cycles}')
                 if run_fault:
@@ -1142,7 +1175,7 @@ def api_mvbcm_run():
                     from nidaq_controller.mvbcm.stimuli.voltage import find_9264
                     ct_device = find_9264()
                     add_log(
-                        f"MV BCM CT (MTR-03 peak + AI-02 AC V) "
+                        f"MV BCM CT (MTR-03 peak + AI-02 RMS, 11 each) "
                         f"on {ct_device} ao0"
                     )
                     _stop_module_ao(di, mi)
@@ -1154,8 +1187,40 @@ def api_mvbcm_run():
                         timeout=5.0,
                         on_row=_on_row,
                         should_stop=_should_stop,
+                        include_peak=True,
+                        include_rms=True,
                     )
                     rows.extend(ct_rows)
+
+                if (run_iph_h or run_imtr_h) and not _should_stop():
+                    from nidaq_controller.mvbcm.stimuli.voltage import find_9264
+                    harm_device = find_9264()
+                    hn = '+'.join(
+                        f'H{n} {pct:g}%' for n, pct in harmonic_map.items()
+                    )
+                    harm_targets = []
+                    if run_iph_h:
+                        harm_targets.append("iph")
+                    if run_imtr_h:
+                        harm_targets.append("imtr")
+                    if harm_targets:
+                        add_log(
+                            f"MV BCM harmonic {'+'.join(harm_targets)} {hn} "
+                            f"of live peak_eng on {harm_device} ao0"
+                        )
+                        _stop_module_ao(di, mi)
+                        _stop_modules_by_product('9264')
+                        harm_rows = run_harmonic_test(
+                            board,
+                            targets=tuple(harm_targets),
+                            device=harm_device,
+                            settle=3.0,
+                            timeout=5.0,
+                            harmonics=harmonic_map,
+                            on_row=_on_row,
+                            should_stop=_should_stop,
+                        )
+                        rows.extend(harm_rows)
 
                 if run_di and not _should_stop():
                     channels = default_trip_channels()
@@ -1295,6 +1360,11 @@ def api_mvbcm_run():
             'device': device_name,
             'analog': run_analog,
             'ct': run_ct,
+            'harmonic': bool(run_iph_h or run_imtr_h),
+            'harmonic_h3_pct': harmonic_map.get(3, 0),
+            'harmonics': [
+                {'order': n, 'pct': pct} for n, pct in harmonic_map.items()
+            ],
             'di_check': run_di,
             'di_cycles': di_cycles if run_di else 0,
             'fault_trip_close': run_fault,
