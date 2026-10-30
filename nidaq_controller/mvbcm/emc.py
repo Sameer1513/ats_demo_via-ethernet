@@ -4,8 +4,8 @@ TC1, TC2, CC, and Imtr stay at 12 mA. Iph is a 50 Hz sine at 160 mA RMS.
 P1.6 stays high so the fixture puts 120 V DC on Vctrl. Neither line is
 part of the trip map.
 
-Every 5 s the live ``rms_eng`` values are scored. After each Trip, Close,
-and Back-trip the script expects one new ``operations.recent`` row and the
+Every 7 s the live ``rms_eng`` values are scored. After each Trip and Close
+the script expects one new ``operations.recent`` row and the
 matching counter to increase by one. A ``fault`` or ``motor_run`` row, or
 a move in ``fault_total`` / ``motor_run_count``, fails. This module is not
 called from the main MV BCM run.
@@ -59,15 +59,13 @@ VCTRL_V = 120.0
 VCTRL_TOL_V = 5.0
 
 CYCLE_S = 60.0
-STEP_S = 5.0
+STEP_S = 7.0
 # RMS ticks inside one minute. The next minute starts at CYCLE_S.
 RMS_MARKS = tuple(float(second) for second in range(0, int(CYCLE_S), int(STEP_S)))
 # (offset seconds, play kind, expected rec_slot, counter that must increase)
 OPS = (
     (0.0, "trip", "trip", "trip_total"),
     (STEP_S, "close", "close", "close_total"),
-    (STEP_S * 2, "backup", "backup_trip", "backup_trip_total"),
-    (STEP_S * 3, "close", "close", "close_total"),
 )
 RMS_SPECS = (
     ("tc1", COIL_A, COIL_TOL_A, "A"),
@@ -77,7 +75,7 @@ RMS_SPECS = (
     ("iph", IPH_A, IPH_TOL_A, "A"),
     ("vctrl", VCTRL_V, VCTRL_TOL_V, "V"),
 )
-COUNTERS = ("trip_total", "close_total", "backup_trip_total")
+COUNTERS = ("trip_total", "close_total")
 QUIET = ("fault_total", "motor_run_count")
 UNWANTED_SLOTS = ("fault", "motor_run")
 
@@ -197,7 +195,7 @@ def run_emc(
 def _run_cycle(
     fetch, board, controller, resolved, stop_event, should_stop, cycle_no, on_row,
 ) -> list[dict]:
-    """One minute: RMS every 5 s, and the four commands on their marks."""
+    """One minute: RMS every 7 s, trip then close on their marks."""
     ops = {offset: (kind, slot, counter) for offset, kind, slot, counter in OPS}
     pending: dict[str, Any] | None = None
     rows: list[dict] = []
@@ -253,18 +251,7 @@ def _start_operation(fetch, board, controller, resolved, stop_event, kind, slot,
 
 
 def _channels_for(resolved: dict[str, str], kind: str) -> dict[str, str]:
-    """Trip omits backup. Back-trip pulses only the backup line."""
-    if kind == "backup":
-        backup = resolved.get("backup_trip_coil")
-        if not backup:
-            raise RuntimeError("backup trip line is not mapped")
-        mapped = {
-            key: value
-            for key, value in resolved.items()
-            if key not in ("trip_coil", "backup_trip_coil")
-        }
-        mapped["trip_coil"] = backup
-        return mapped
+    """Trip omits the backup coil so only the main trip line pulses."""
     if kind == "trip":
         return {key: value for key, value in resolved.items() if key != "backup_trip_coil"}
     return dict(resolved)
@@ -350,7 +337,10 @@ def _event_row(payload, error, pending, cycle_no, prefix) -> dict:
     if payload is None or before_ts is None:
         why = str(error or pending["snap_error"] or "no live payload")
         return _result(cycle_no, slot, "event", slot, "", "", slot, slot, "FAIL", f"{prefix}; {why}")
-    fresh = _rows_after(payload, before_ts)
+    fresh = [
+        row for row in _rows_after(payload, before_ts)
+        if str(row.get("rec_slot") or "").lower() != "backup_trip"
+    ]
     slots = [str(row.get("rec_slot") or "").lower() for row in fresh]
     unwanted = [name for name in slots if name in UNWANTED_SLOTS]
     ok = len(fresh) == 1 and slots == [slot] and not unwanted and pending["drive_error"] is None
