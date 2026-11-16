@@ -1415,6 +1415,8 @@ def _launch_mvbcm_event(di, mi, board, device_name, label, runner_name):
                 from nidaq_controller.mvbcm.close_event import run_close_event as run
             elif runner_name == 'emc':
                 from nidaq_controller.mvbcm.emc import run_emc as run
+            elif runner_name == 'motor':
+                from nidaq_controller.mvbcm.motor_run import run_motor_run as run
             else:
                 from nidaq_controller.mvbcm.fault_current import run_fault_current as run
 
@@ -1583,6 +1585,29 @@ def api_mvbcm_emc():
                 _mvbcm_state['done'] = True
                 _mvbcm_state['error'] = str(e)
         return _api_error('MV BCM emc', e, di=di, mi=mi)
+
+
+@app.route('/api/mvbcm/motor-run', methods=['POST'])
+def api_mvbcm_motor_run():
+    """API: MTR-05 motor run time. Not the main Run path."""
+    di = mi = None
+    try:
+        data, err = _parse_json()
+        if err:
+            return err
+        started, err = _begin_mvbcm_event(data)
+        if err:
+            return err
+        di, mi, board, device_name = started
+        _launch_mvbcm_event(di, mi, board, device_name, 'motor run', 'motor')
+        return jsonify({'started': True, 'motor_run': True, 'board': board, 'device': device_name})
+    except Exception as e:
+        with _mvbcm_lock:
+            if _mvbcm_state['running'] and not _mvbcm_state['rows']:
+                _mvbcm_state['running'] = False
+                _mvbcm_state['done'] = True
+                _mvbcm_state['error'] = str(e)
+        return _api_error('MV BCM motor run', e, di=di, mi=mi)
 
 
 @app.route('/api/do/write', methods=['POST'])
