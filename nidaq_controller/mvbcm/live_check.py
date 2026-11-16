@@ -1,7 +1,8 @@
 """Score typed inputs against GET /api/live. Does not open an NI task.
 
 Blank analog inputs are 0, then the same conversion as ``sweep.py`` /
-``emc.py``. Digital blank is OFF. Rows use the MV BCM CSV columns.
+``emc.py``. Digital blank is OFF. Each sample also logs ``temp.celsius``
+with no pass/fail limits. Rows use the MV BCM CSV columns.
 """
 
 from __future__ import annotations
@@ -155,6 +156,7 @@ def score_once(payload: dict, analog: dict[str, float], digital: dict[str, bool]
             step, signal, stimulus, "active", measured, "digital.active",
             bit, bit, "PASS" if ok else "FAIL", note,
         ))
+    rows.append(_temp_row(payload, step))
     return rows
 
 
@@ -204,6 +206,19 @@ def _on_off(value, signal: str) -> bool:
     raise ValueError(f"{signal} must be on or off")
 
 
+def _temp_row(payload: dict, step: int) -> dict:
+    """Board temperature. Logged only; no limits."""
+    temp = payload.get("temp") if isinstance(payload, dict) else None
+    if not isinstance(temp, dict) or temp.get("ok") is not True:
+        return _row(step, "temp", "", "C", None, "temp.celsius", "", "", "LOG", "temp unread", phase="celsius")
+    try:
+        value = float(temp["celsius"])
+    except (KeyError, TypeError, ValueError):
+        return _row(step, "temp", "", "C", None, "temp.celsius", "", "", "LOG", "temp.celsius missing", phase="celsius")
+    sensor = str(temp.get("sensor") or "").strip()
+    return _row(step, "temp", "", "C", value, "temp.celsius", "", "", "LOG", sensor, phase="celsius")
+
+
 def _digital_got(payload: dict, signal: str) -> bool:
     last: LiveError | None = None
     for name in _DIGITAL_ALIASES[signal]:
@@ -216,13 +231,13 @@ def _digital_got(payload: dict, signal: str) -> bool:
     raise LiveError(f"signal {signal!r} not in live digital")
 
 
-def _row(step, signal, stimulus, unit, measured, field, low, high, result, note) -> dict:
+def _row(step, signal, stimulus, unit, measured, field, low, high, result, note, phase: str = "check") -> dict:
     return {
         "group": "live_check",
         "test_id": "LIVE",
         "step": str(step),
         "signal": signal,
-        "phase": "check",
+        "phase": phase,
         "stimulus_value": _fmt(stimulus),
         "unit": unit,
         "measured": "" if measured is None else _fmt(measured),
