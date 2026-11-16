@@ -973,7 +973,8 @@ def _stop_modules_by_product(token: str) -> None:
 
 def _mvbcm_counts(rows: list) -> tuple:
     passed = sum(1 for row in rows if row.get('result') == 'PASS')
-    return passed, len(rows) - passed
+    failed = sum(1 for row in rows if row.get('result') == 'FAIL')
+    return passed, failed
 
 
 @app.route('/api/mvbcm/status')

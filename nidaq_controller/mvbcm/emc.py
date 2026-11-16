@@ -6,7 +6,8 @@ so the 9264 is driven at 1.760 V RMS.
 P1.6 stays high so the fixture puts 120 V DC on Vctrl. Neither line is
 part of the trip map.
 
-Every 7 s the live ``rms_eng`` values are scored. Trip is at 0 s and close
+Every 7 s the live ``rms_eng`` values are scored, and ``temp.celsius`` is
+logged with a timestamp and no pass/fail. Trip is at 0 s and close
 is at 10 s. After each pulse the script polls until the new
 ``operations.recent`` row and the matching counter arrive, or until 10 s
 after that pulse. The close pulse does not move earlier if the trip row
@@ -215,6 +216,7 @@ def _run_cycle(
         now = time.perf_counter()
         while rms_at < CYCLE_S and now + 0.05 >= cycle_t0 + rms_at:
             _emit(_score_rms(payload, error, cycle_no, rms_at))
+            _emit([_temp_row(payload, cycle_no, rms_at)])
             rms_at += RMS_STEP_S
             if rms_at >= CYCLE_S or now + 0.05 < cycle_t0 + rms_at:
                 break
@@ -341,6 +343,21 @@ def _play(controller, channels: dict[str, str], kind: str, stop_event: threading
         raise MvbcmStopped("stopped by user") from exc
     finally:
         lock.release()
+
+
+def _temp_row(payload, cycle_no: int, mark: float) -> dict:
+    """One temperature sample. Logged only; no limits."""
+    when = f"t={mark:.0f}s"
+    temp = payload.get("temp") if isinstance(payload, dict) else None
+    if not isinstance(temp, dict) or temp.get("ok") is not True:
+        return _result(cycle_no, "temp", "celsius", "", "C", "", "", "", "LOG", f"{when}; temp unread")
+    try:
+        value = float(temp["celsius"])
+    except (KeyError, TypeError, ValueError):
+        return _result(cycle_no, "temp", "celsius", "", "C", "", "", "", "LOG", f"{when}; temp.celsius missing")
+    sensor = str(temp.get("sensor") or "").strip()
+    note = f"{when}; {sensor}" if sensor else when
+    return _result(cycle_no, "temp", "celsius", "", "C", f"{value:.3f}", "", "", "LOG", note)
 
 
 def _score_rms(payload, error, cycle_no: int, mark: float) -> list[dict]:

@@ -2237,7 +2237,7 @@
         }
 
         function mvbcmRowHtml(row) {
-            const cls = row.result === 'PASS' ? 'log-info' : 'log-error';
+            const cls = row.result === 'FAIL' ? 'log-error' : 'log-info';
             const note = row.note ? ` (${escText(row.note)})` : '';
             const measured = row.measured === '' || row.measured == null ? '-' : escText(row.measured);
             return `<div class="log-entry ${cls}">${escText(row.result)} ${escText(row.test_id)} step ${escText(row.step)} ${escText(row.signal)} ${escText(row.phase)} ${escText(row.stimulus_value)} ${escText(row.unit)} measured ${measured} [${escText(row.min)}, ${escText(row.max)}]${note}</div>`;
