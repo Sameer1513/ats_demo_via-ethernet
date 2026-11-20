@@ -1,7 +1,7 @@
 {
-  "trip_coil": "Dev2/port2/line1",
-  "backup_trip_coil": "Dev2/port5/line1",
-  "switch_52a": "Dev2/port5/line0",
-  "switch_52b": "Dev2/port4/line7",
-  "close_coil": "Dev2/port2/line0"
+  "trip_coil": "Dev9/port2/line1",
+  "backup_trip_coil": "Dev9/port5/line1",
+  "switch_52a": "Dev9/port5/line0",
+  "switch_52b": "Dev9/port4/line7",
+  "close_coil": "Dev9/port2/line0"
 }
